@@ -1,36 +1,165 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bankroll Sidekick
 
-## Getting Started
+Bankroll Sidekick is a lean, local-first poker bankroll and session tracker.
 
-First, run the development server:
+It is designed for serious tracking:
+- fast logging
+- clear bankroll/risk state
+- no auth
+- no cloud dependency
+- mobile-friendly
+- dark mode by default
+
+## Stack
+
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Recharts
+- browser localStorage for persistence
+
+## Quick start
+
+### 1) Install
+
+```bash
+npm install
+```
+
+### 2) Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3) Build / lint
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+## Core features (V1)
 
-To learn more about Next.js, take a look at the following resources:
+### Dashboard
+- current bankroll
+- total P/L
+- total withdrawals
+- total deposits
+- session win rate
+- average buy-in
+- bankroll tier/status
+- rule-state explanation panel
+- today status card
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Session logger
+- add/edit/delete sessions
+- fields: date, game type, buy-in, entries/rebuys, total invested, cashout, notes, optional duration, tags
+- auto profit/loss = cashout - invested
+- filter history by:
+  - game type
+  - tag
+  - range (7d / 30d / all)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Bankroll rules engine
+Custom rules:
+- stop-loss amount
+- withdrawal trigger amount
+- withdrawal amount
+- minimum bankroll floor
 
-## Deploy on Vercel
+State output:
+- safe to play
+- approaching stop-loss
+- withdrawal available
+- below bankroll floor
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Withdrawal + deposit tracker
+- separate logging for withdrawals and deposits
+- running secured amount outside bankroll
+- keeps bankroll growth vs removed money clear
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Analytics
+- bankroll over time chart
+- P/L by game type
+- withdrawals over time
+- biggest win/loss
+- average session result
+- streak tracking (upswing / downswing)
+- best game type summary
+
+### Data management
+- export JSON backup
+- import JSON backup (paste or file)
+- load seed data example
+- reset all data (confirmation modal)
+
+## Project structure
+
+```text
+src/
+  app/
+    page.tsx                    # main app route
+    settings/page.tsx           # bankroll + rules + currency settings
+    layout.tsx                  # dark-mode-first root layout
+  components/
+    bankroll-sidekick-app.tsx   # main UI shell and feature tabs
+    ui/*                        # shadcn/ui primitives
+  hooks/
+    use-app-data.ts             # localStorage hydration + persistence
+  lib/
+    types.ts                    # core domain types
+    constants.ts                # app constants/default state
+    seed.ts                     # seed example dataset
+    bankroll.ts                 # bankroll math, filters, analytics, rules engine
+    storage.ts                  # import/export + normalization + localStorage IO
+    format.ts                   # display formatting helpers
+```
+
+## Bankroll logic
+
+Primary bankroll formula:
+
+```text
+bankroll = starting bankroll + deposits - withdrawals + total session profit/loss
+```
+
+Rules engine behavior:
+
+1. `effectiveBaseline` starts from `startingBankroll`.
+2. Completed withdrawal cycles increase effective baseline:
+   - `cyclesCompleted = floor(totalWithdrawals / withdrawalAmount)`
+   - `effectiveBaseline = startingBankroll + cyclesCompleted * withdrawalAmount`
+3. Important lines:
+   - `stopLossLine = effectiveBaseline - stopLossAmount`
+   - `triggerLine = effectiveBaseline + withdrawalTriggerAmount`
+4. Current status derives from bankroll position vs these lines + floor.
+
+Example strategy supported:
+- baseline = $500
+- trigger = +$150
+- withdraw = $100 each trigger hit
+- baseline climbs as withdrawals accumulate
+
+## Local-first behavior
+
+- All data is stored in browser localStorage.
+- No backend/database required.
+- App works offline once loaded.
+- JSON export/import provides portable backups.
+
+## Seed data
+
+Use **Data -> Load seed data** to quickly populate:
+- example sessions
+- a sample withdrawal
+- sample notes/tags
+
+## Notes
+
+- Currency options are simple and local.
+- Inputs are sanitized to prevent broken numeric state.
+- Import is normalized/validated before writing to state.
