@@ -11,8 +11,12 @@ export function useAppData() {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    setData(loadAppData())
-    setHydrated(true)
+    const frame = window.requestAnimationFrame(() => {
+      setData(loadAppData())
+      setHydrated(true)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [])
 
   useEffect(() => {

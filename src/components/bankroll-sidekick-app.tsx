@@ -226,7 +226,6 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
   const streak = useMemo(() => getStreakSummary(data.sessions), [data.sessions])
 
   const stateBadge = statusUi(ruleEval.status)
-  const sortedSessions = useMemo(() => sortByDateDesc(data.sessions), [data.sessions])
   const sortedWithdrawals = useMemo(
     () => sortByDateDesc(data.withdrawals),
     [data.withdrawals]
@@ -660,7 +659,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   <XAxis dataKey="date" tickFormatter={formatDateLabel} />
                   <YAxis />
                   <RechartsTooltip
-                    formatter={(value: number) => formatCurrency(Number(value), currency)}
+                    formatter={(value: unknown) => formatCurrency(Number(value ?? 0), currency)}
                     labelFormatter={(label) => String(label)}
                   />
                   <Area
@@ -1219,7 +1218,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   <XAxis dataKey="date" tickFormatter={formatDateLabel} />
                   <YAxis />
                   <RechartsTooltip
-                    formatter={(value: number) => formatCurrency(Number(value), currency)}
+                    formatter={(value) => formatCurrency(Number(value ?? 0), currency)}
                     labelFormatter={(label) => String(label)}
                   />
                   <Area
@@ -1246,7 +1245,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     <XAxis dataKey="gameType" />
                     <YAxis />
                     <RechartsTooltip
-                      formatter={(value: number) => formatCurrency(Number(value), currency)}
+                      formatter={(value: unknown) => formatCurrency(Number(value ?? 0), currency)}
                     />
                     <Bar dataKey="totalProfitLoss" fill="#9ca3af" radius={[6, 6, 0, 0]} />
                   </BarChart>
@@ -1265,7 +1264,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     <XAxis dataKey="date" tickFormatter={formatDateLabel} />
                     <YAxis />
                     <RechartsTooltip
-                      formatter={(value: number) => formatCurrency(Number(value), currency)}
+                      formatter={(value: unknown) => formatCurrency(Number(value ?? 0), currency)}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="withdrawal" stroke="#a3e635" strokeWidth={2} />
