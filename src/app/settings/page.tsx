@@ -25,6 +25,19 @@ import { useAppData } from "@/hooks/use-app-data"
 export default function SettingsPage() {
   const { data, setData, hydrated } = useAppData()
 
+  function isPresetActive(presetId: string) {
+    const preset = RULE_PRESETS.find((entry) => entry.id === presetId)
+    if (!preset) return false
+    const rules = data.settings.rules
+    return (
+      data.settings.startingBankroll === preset.startingBankroll &&
+      rules.stopLossAmount === preset.rules.stopLossAmount &&
+      rules.withdrawalTriggerAmount === preset.rules.withdrawalTriggerAmount &&
+      rules.withdrawalAmount === preset.rules.withdrawalAmount &&
+      rules.minBankrollFloor === preset.rules.minBankrollFloor
+    )
+  }
+
   function applyPreset(presetId: string) {
     const preset = RULE_PRESETS.find((entry) => entry.id === presetId)
     if (!preset) return
@@ -81,7 +94,14 @@ export default function SettingsPage() {
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"
             >
               <div>
-                <p className="text-sm font-medium">{preset.label}</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="text-sm font-medium">{preset.label}</p>
+                  {isPresetActive(preset.id) ? (
+                    <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                      active
+                    </span>
+                  ) : null}
+                </div>
                 <p className="text-xs text-muted-foreground">{preset.description}</p>
                 <p className="text-xs text-muted-foreground">
                   Start {preset.startingBankroll} • stop-loss {preset.rules.stopLossAmount} • trigger{" "}

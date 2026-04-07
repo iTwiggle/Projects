@@ -7,6 +7,7 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   Legend,
   Line,
@@ -186,6 +187,10 @@ function compactNumber(value: number) {
   return Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(
     value
   )
+}
+
+function barTone(value: number) {
+  return value >= 0 ? "#93c5fd" : "#fca5a5"
 }
 
 export function BankrollSidekickApp({ data, onChange }: Props) {
@@ -555,7 +560,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </Card>
 
             <div className="grid gap-3">
-              <Card className={`border ${stateBadge.bannerTone}`}>
+              <Card className={`border-l-4 ${stateBadge.bannerTone}`}>
                 <CardContent className="flex items-start gap-2 p-3">
                   {ruleEval.status === "safe-to-play" || ruleEval.status === "withdrawal-available" ? (
                     <ShieldCheck className="mt-0.5 size-4 shrink-0" />
@@ -565,7 +570,12 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     <ShieldAlert className="mt-0.5 size-4 shrink-0" />
                   )}
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold">{stateBadge.label}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="text-sm font-semibold">{stateBadge.label}</p>
+                      <Badge variant="outline" className="h-5 border-current/40 text-[10px]">
+                        bankroll state
+                      </Badge>
+                    </div>
                     <p className="text-xs opacity-90">{ruleEval.explanation}</p>
                     <p className="text-[11px] opacity-80">
                       Buffer to stop-loss: {formatCurrency(ruleBuffer, currency)} • floor:{" "}
@@ -674,7 +684,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
               </CardHeader>
               <CardContent className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={bankrollTimeline}>
+                  <AreaChart data={bankrollTimeline} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke={chartGrid} vertical={false} />
                     <XAxis
                       dataKey="date"
@@ -1018,7 +1028,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     onClick={() => setSessionHistoryView("table")}
                   >
                     <Table2 className="size-3.5" />
-                    Table
+                    <span className="hidden sm:inline">Table</span>
                   </Button>
                   <Button
                     variant={sessionHistoryView === "cards" ? "default" : "ghost"}
@@ -1027,7 +1037,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     onClick={() => setSessionHistoryView("cards")}
                   >
                     <LayoutGrid className="size-3.5" />
-                    Cards
+                    <span className="hidden sm:inline">Cards</span>
                   </Button>
                 </div>
               </div>
@@ -1178,7 +1188,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Input
                     type="date"
                     value={withdrawalForm.date}
@@ -1202,7 +1212,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     setWithdrawalForm((prev) => ({ ...prev, note: event.target.value }))
                   }
                 />
-                <Button onClick={addWithdrawal} className="w-full">
+                <Button size="sm" onClick={addWithdrawal} className="w-full">
                   Add withdrawal
                 </Button>
               </CardContent>
@@ -1216,7 +1226,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Input
                     type="date"
                     value={depositForm.date}
@@ -1240,7 +1250,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     setDepositForm((prev) => ({ ...prev, note: event.target.value }))
                   }
                 />
-                <Button variant="outline" onClick={addDeposit} className="w-full">
+                <Button variant="outline" size="sm" onClick={addDeposit} className="w-full">
                   Add deposit
                 </Button>
               </CardContent>
@@ -1357,7 +1367,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </CardHeader>
             <CardContent className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={bankrollTimeline}>
+                  <AreaChart data={bankrollTimeline} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke={chartGrid} vertical={false} />
                   <XAxis
                     dataKey="date"
@@ -1396,7 +1406,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
               </CardHeader>
               <CardContent className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sessionTypeSummary}>
+                  <BarChart data={sessionTypeSummary} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke={chartGrid} vertical={false} />
                     <XAxis
                       dataKey="gameType"
@@ -1414,7 +1424,11 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                       formatter={(value: unknown) => formatCurrency(Number(value ?? 0), currency)}
                       contentStyle={chartTooltipStyle}
                     />
-                    <Bar dataKey="totalProfitLoss" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="totalProfitLoss" radius={[4, 4, 0, 0]}>
+                      {sessionTypeSummary.map((entry) => (
+                        <Cell key={entry.gameType} fill={barTone(entry.totalProfitLoss)} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -1426,7 +1440,10 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
               </CardHeader>
               <CardContent className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={withdrawalsTimeline}>
+                  <LineChart
+                    data={withdrawalsTimeline}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                  >
                     <CartesianGrid stroke={chartGrid} vertical={false} />
                     <XAxis
                       dataKey="date"
@@ -1515,12 +1532,13 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleExport}>
+                <Button size="sm" onClick={handleExport}>
                   <Download className="size-4" />
                   Export JSON
                 </Button>
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => onChange(normalizeAppData(SEED_APP_DATA))}
                 >
                   Load seed data
@@ -1540,6 +1558,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                 />
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     fileInputRef.current?.click()
                   }}
@@ -1557,13 +1576,13 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
               {importError ? <p className="text-sm text-red-300">{importError}</p> : null}
               {importSuccess ? <p className="text-sm text-emerald-300">{importSuccess}</p> : null}
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={handleImportFromText}>
+                <Button variant="outline" size="sm" onClick={handleImportFromText}>
                   <Upload className="size-4" />
                   Import JSON
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive">
+                    <Button variant="destructive" size="sm">
                       <Trash2 className="size-4" />
                       Reset all data
                     </Button>
