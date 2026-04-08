@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Area,
@@ -34,6 +34,7 @@ import {
   Upload,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,6 +54,13 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +128,14 @@ interface MoneyFormState {
   note: string
 }
 
+interface QuickSessionFormState {
+  buyIn: string
+  cashout: string
+  gameType: GameType
+  durationMinutes: number | null
+  notes: string
+}
+
 const EMPTY_SESSION_FORM: SessionFormState = {
   date: new Date().toISOString().slice(0, 10),
   gameType: "Spins",
@@ -136,6 +152,14 @@ const EMPTY_MONEY_FORM: MoneyFormState = {
   date: new Date().toISOString().slice(0, 10),
   amount: "",
   note: "",
+}
+
+const EMPTY_QUICK_SESSION_FORM: QuickSessionFormState = {
+  buyIn: "",
+  cashout: "",
+  gameType: "Cash",
+  durationMinutes: null,
+  notes: "",
 }
 
 function statusUi(status: RuleStatus) {
@@ -173,15 +197,18 @@ function metricTone(value: number) {
   return "text-muted-foreground"
 }
 
-const chartGrid = "rgba(148,163,184,0.16)"
+const chartGrid = "rgba(148,163,184,0.12)"
 const chartAxis = "#94a3b8"
 const chartTooltipStyle = {
-  background: "#111827",
-  border: "1px solid rgba(148,163,184,0.25)",
+  background: "#1a1a1f",
+  border: "1px solid rgba(148,163,184,0.2)",
   borderRadius: "10px",
   color: "#e5e7eb",
   fontSize: "12px",
+  padding: "8px 12px",
 }
+
+const QUICK_DURATION_PRESETS = [5, 10, 15, 30] as const
 
 function compactNumber(value: number) {
   return Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(
@@ -193,12 +220,37 @@ function barTone(value: number) {
   return value >= 0 ? "#93c5fd" : "#fca5a5"
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function nearestPresetDuration(minutes: number, presets: readonly number[]) {
+  let best = presets[0] ?? minutes
+  let bestDelta = Math.abs(minutes - best)
+  for (const preset of presets) {
+    const delta = Math.abs(minutes - preset)
+    if (delta < bestDelta) {
+      best = preset
+      bestDelta = delta
+    }
+  }
+  return best
+}
+
 export function BankrollSidekickApp({ data, onChange }: Props) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [sessionHistoryView, setSessionHistoryView] = useState<"table" | "cards">("cards")
   const [sessionForm, setSessionForm] = useState<SessionFormState>(EMPTY_SESSION_FORM)
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [sessionError, setSessionError] = useState("")
+
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickForm, setQuickForm] = useState<QuickSessionFormState>(EMPTY_QUICK_SESSION_FORM)
+  const [quickError, setQuickError] = useState("")
+  const [quickOpenedAt, setQuickOpenedAt] = useState<number | null>(null)
+  const [quickSuggestedDuration, setQuickSuggestedDuration] = useState<number | null>(null)
+  const quickBuyInRef = useRef<HTMLInputElement | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const [withdrawalForm, setWithdrawalForm] = useState<MoneyFormState>(EMPTY_MONEY_FORM)
   const [depositForm, setDepositForm] = useState<MoneyFormState>(EMPTY_MONEY_FORM)
@@ -490,20 +542,106 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
   )
   const ruleBuffer = round2(totals.bankroll - ruleEval.stopLossLine)
 
+  const durationPresets = QUICK_DURATION_PRESETS
+
+  useEffect(() => {
+    function update() {
+      setIsMobile(window.matchMedia("(max-width: 640px)").matches)
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
+
+  function openQuickSession() {
+    setQuickError("")
+    setQuickOpenedAt(Date.now())
+    setQuickOpen(true)
+  }
+
+  useEffect(() => {
+    if (!quickOpen) return
+    const timer = window.setTimeout(() => {
+      quickBuyInRef.current?.focus()
+      quickBuyInRef.current?.select?.()
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [quickOpen])
+
+  function resetQuickForm() {
+    setQuickForm(EMPTY_QUICK_SESSION_FORM)
+    setQuickError("")
+    setQuickOpenedAt(null)
+    setQuickSuggestedDuration(null)
+  }
+
+  useEffect(() => {
+    if (!quickOpen || !quickOpenedAt) return
+    if (quickForm.durationMinutes !== null) return
+
+    function computeSuggestion() {
+      const openedAt = quickOpenedAt
+      if (!openedAt) return null
+      const elapsedMinutes = Math.round((Date.now() - openedAt) / 60000)
+      const clamped = clamp(elapsedMinutes, 1, 240)
+      return nearestPresetDuration(clamped, durationPresets)
+    }
+
+    function updateSuggestion() {
+      setQuickSuggestedDuration(computeSuggestion())
+    }
+
+    updateSuggestion()
+    const interval = window.setInterval(updateSuggestion, 15000)
+    return () => window.clearInterval(interval)
+  }, [quickOpen, quickOpenedAt, quickForm.durationMinutes, durationPresets])
+
+  function submitQuickSession() {
+    setQuickError("")
+    const buyIn = round2(Math.max(0, toNumber(quickForm.buyIn, 0)))
+    if (buyIn <= 0) {
+      setQuickError("Buy-in is required.")
+      return
+    }
+
+    const session = buildSession({
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      gameType: quickForm.gameType,
+      buyIn,
+      entries: 1,
+      totalInvested: buyIn,
+      cashout: round2(Math.max(0, toNumber(quickForm.cashout, 0))),
+      notes: quickForm.notes.trim(),
+      durationMinutes:
+        quickForm.durationMinutes ??
+        (quickOpenedAt ? quickSuggestedDuration ?? 0 : 0),
+      tags: [],
+    })
+
+    onChange({
+      ...data,
+      sessions: sortByDateDesc([session, ...data.sessions]),
+    })
+    setQuickOpen(false)
+    resetQuickForm()
+    setActiveTab("sessions")
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-3 p-2 pb-6 sm:gap-5 sm:p-4 sm:pb-8">
-      <header className="sticky top-0 z-30 -mx-2 border-b border-border/70 bg-background/85 px-2 py-2 backdrop-blur sm:-mx-4 sm:px-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-3 pb-8 sm:gap-6 sm:p-5 sm:pb-10">
+      <header className="sticky top-0 z-30 -mx-3 border-b border-border/60 bg-background/90 px-3 py-3 backdrop-blur-md sm:-mx-5 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          <div className="space-y-0.5">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
               Bankroll Sidekick
             </h1>
-            <p className="text-xs text-muted-foreground sm:text-sm">
-              Local-first poker bankroll and session tracker.
+            <p className="text-[13px] text-muted-foreground">
+              Local-first poker bankroll and session tracker
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge className={`border px-2 py-0.5 text-[11px] ${stateBadge.tone}`}>
+          <div className="flex items-center gap-2.5">
+            <Badge className={`border px-2.5 py-1 text-[11px] font-medium ${stateBadge.tone}`}>
               {stateBadge.label}
             </Badge>
             <Link href="/settings">
@@ -518,7 +656,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           variant="line"
-          className="w-full justify-start overflow-x-auto rounded-none p-0 text-xs sm:text-sm"
+          className="w-full justify-start overflow-x-auto rounded-none border-b border-border/40 p-0 text-xs sm:text-sm"
         >
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -527,58 +665,214 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard" className="space-y-3 pt-1 sm:space-y-4">
-          <div className="grid gap-3 lg:grid-cols-3">
-            <Card className="border-zinc-700/70 bg-gradient-to-br from-zinc-900 to-zinc-950 lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-zinc-400">Current bankroll</CardDescription>
-                <CardTitle className="text-3xl sm:text-4xl">
+        {activeTab === "dashboard" ? (
+          <>
+            <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex sm:right-6 sm:bottom-6">
+              <Button
+                className="pointer-events-auto h-11 rounded-full px-4 text-sm font-semibold shadow-lg shadow-black/25"
+                onClick={openQuickSession}
+              >
+                <PlusCircle className="size-4" />
+                + Session
+              </Button>
+            </div>
+
+            <Sheet open={quickOpen} onOpenChange={setQuickOpen}>
+              <SheetContent
+                side={isMobile ? "bottom" : "right"}
+                className={cn(
+                  "gap-0 p-0",
+                  isMobile
+                    ? "h-auto max-h-[85vh] rounded-t-2xl border-t border-border/60"
+                    : "w-[22rem] border-l border-border/60"
+                )}
+              >
+                <div className="p-4 sm:p-5">
+                  <SheetHeader className="p-0">
+                    <SheetTitle className="text-base font-semibold">Quick add session</SheetTitle>
+                    <SheetDescription className="text-[13px]">
+                      Minimal fields for fast logging.
+                    </SheetDescription>
+                  </SheetHeader>
+
+                  <div className="mt-4 space-y-3.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Buy-in
+                        </label>
+                        <Input
+                          ref={quickBuyInRef}
+                          inputMode="decimal"
+                          value={quickForm.buyIn}
+                          onChange={(event) =>
+                            setQuickForm((prev) => ({ ...prev, buyIn: event.target.value }))
+                          }
+                          placeholder="200"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Cashout
+                        </label>
+                        <Input
+                          inputMode="decimal"
+                          value={quickForm.cashout}
+                          onChange={(event) =>
+                            setQuickForm((prev) => ({ ...prev, cashout: event.target.value }))
+                          }
+                          placeholder="450"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Game type
+                      </label>
+                      <Select
+                        value={quickForm.gameType}
+                        onValueChange={(value) =>
+                          setQuickForm((prev) => ({ ...prev, gameType: value as GameType }))
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Spins">Spins</SelectItem>
+                          <SelectItem value="MTT">MTT</SelectItem>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Duration
+                        </label>
+                        {quickForm.durationMinutes === null && quickSuggestedDuration !== null ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            suggested {quickSuggestedDuration}m
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {durationPresets.map((minutes) => {
+                          const active = quickForm.durationMinutes === minutes
+                          return (
+                            <Button
+                              key={minutes}
+                              type="button"
+                              size="sm"
+                              variant={active ? "default" : "outline"}
+                              className="h-8 rounded-full px-3 text-xs font-semibold"
+                              onClick={() =>
+                                setQuickForm((prev) => ({
+                                  ...prev,
+                                  durationMinutes: active ? null : minutes,
+                                }))
+                              }
+                            >
+                              {minutes}m
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Notes (optional)
+                      </label>
+                      <Textarea
+                        value={quickForm.notes}
+                        onChange={(event) =>
+                          setQuickForm((prev) => ({ ...prev, notes: event.target.value }))
+                        }
+                        placeholder="Quick note..."
+                      />
+                    </div>
+
+                    {quickError ? (
+                      <p className="text-[13px] font-medium text-red-300">{quickError}</p>
+                    ) : null}
+
+                    <div className="flex gap-2 pt-1">
+                      <Button className="flex-1 font-semibold" onClick={submitQuickSession}>
+                        Add session
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setQuickOpen(false)
+                          resetQuickForm()
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
+        ) : null}
+
+        <TabsContent value="dashboard" className="space-y-4 pt-2 sm:space-y-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="border-zinc-700/60 bg-gradient-to-br from-zinc-900 to-zinc-950 lg:col-span-2">
+              <CardHeader className="pb-3">
+                <CardDescription className="text-xs font-medium uppercase tracking-wider text-zinc-500">Current bankroll</CardDescription>
+                <CardTitle className="text-4xl font-bold tracking-tight sm:text-5xl">
                   {formatCurrency(totals.bankroll, currency)}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-1">
-                <div className="grid gap-2 text-sm sm:grid-cols-3">
-                  <div className="rounded-lg border border-zinc-700/80 bg-zinc-900/60 px-3 py-2">
-                    <p className="text-[11px] text-zinc-400">Total P/L</p>
-                    <p className={`text-sm font-semibold ${metricTone(totals.totalProfitLoss)}`}>
+              <CardContent className="space-y-3 pt-0">
+                <div className="grid gap-2.5 text-sm sm:grid-cols-3">
+                  <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-3.5 py-2.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Total P/L</p>
+                    <p className={`mt-0.5 text-base font-semibold ${metricTone(totals.totalProfitLoss)}`}>
                       {formatCurrency(totals.totalProfitLoss, currency)}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-zinc-700/80 bg-zinc-900/60 px-3 py-2">
-                    <p className="text-[11px] text-zinc-400">Tier</p>
-                    <p className="text-sm font-semibold text-zinc-100">{tier.label}</p>
+                  <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-3.5 py-2.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Tier</p>
+                    <p className="mt-0.5 text-base font-semibold text-zinc-100">{tier.label}</p>
                   </div>
-                  <div className="rounded-lg border border-zinc-700/80 bg-zinc-900/60 px-3 py-2">
-                    <p className="text-[11px] text-zinc-400">Today</p>
-                    <p className={`text-sm font-semibold ${metricTone(today.profitLoss)}`}>
+                  <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-3.5 py-2.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Today</p>
+                    <p className={`mt-0.5 text-base font-semibold ${metricTone(today.profitLoss)}`}>
                       {today.sessions} sessions · {formatCurrency(today.profitLoss, currency)}
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-zinc-400">{tier.note}</p>
+                <p className="text-[13px] leading-relaxed text-zinc-500">{tier.note}</p>
               </CardContent>
             </Card>
 
-            <div className="grid gap-3">
+            <div className="grid gap-4">
               <Card className={`border-l-4 ${stateBadge.bannerTone}`}>
-                <CardContent className="flex items-start gap-2 p-3">
+                <CardContent className="flex items-start gap-3 p-4">
                   {ruleEval.status === "safe-to-play" || ruleEval.status === "withdrawal-available" ? (
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0" />
+                    <ShieldCheck className="mt-0.5 size-5 shrink-0" />
                   ) : ruleEval.status === "approaching-stop-loss" ? (
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <AlertTriangle className="mt-0.5 size-5 shrink-0" />
                   ) : (
-                    <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                    <ShieldAlert className="mt-0.5 size-5 shrink-0" />
                   )}
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-sm font-semibold">{stateBadge.label}</p>
-                      <Badge variant="outline" className="h-5 border-current/40 text-[10px]">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold">{stateBadge.label}</p>
+                      <Badge variant="outline" className="h-5 border-current/40 text-[10px] font-medium">
                         bankroll state
                       </Badge>
                     </div>
-                    <p className="text-xs opacity-90">{ruleEval.explanation}</p>
-                    <p className="text-[11px] opacity-80">
-                      Buffer to stop-loss: {formatCurrency(ruleBuffer, currency)} • floor:{" "}
+                    <p className="text-[13px] leading-relaxed opacity-90">{ruleEval.explanation}</p>
+                    <p className="text-xs opacity-70">
+                      Buffer to stop-loss: {formatCurrency(ruleBuffer, currency)} · floor:{" "}
                       {formatCurrency(data.settings.rules.minBankrollFloor, currency)}
                     </p>
                   </div>
@@ -587,17 +881,17 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Withdrawal recommendation</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Withdrawal recommendation</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-xs">
+                <CardContent className="space-y-2.5 text-[13px]">
                   {ruleEval.suggestedWithdrawalCount > 0 ? (
                     <>
-                      <p className="font-medium text-blue-200">
+                      <p className="font-semibold text-blue-300">
                         Withdraw {ruleEval.suggestedWithdrawalCount} ×{" "}
                         {formatCurrency(data.settings.rules.withdrawalAmount, currency)} ={" "}
                         {formatCurrency(ruleEval.suggestedWithdrawalValue, currency)}
                       </p>
-                      <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5">
+                      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                         <p>
                           projected bankroll: {formatCurrency(totals.bankroll, currency)} -{" "}
                           {formatCurrency(ruleEval.suggestedWithdrawalValue, currency)} ={" "}
@@ -612,14 +906,14 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     </>
                   ) : (
                     <>
-                      <p>
+                      <p className="leading-relaxed">
                         No withdrawal yet. Need{" "}
                         <span className="font-semibold text-foreground">
                           {formatCurrency(amountToTrigger, currency)}
                         </span>{" "}
                         more to hit the next trigger.
                       </p>
-                      <p className="text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         Trigger line = {formatCurrency(ruleEval.triggerLine, currency)} from current
                         baseline {formatCurrency(ruleEval.effectiveBaseline, currency)}.
                       </p>
@@ -630,59 +924,59 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-2 grid-cols-2 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Win rate</p>
-                <p className="text-sm font-semibold">{formatPercent(totals.sessionWinRate)}</p>
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Win rate</p>
+                <p className="mt-1 text-base font-semibold">{formatPercent(totals.sessionWinRate)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Avg buy-in</p>
-                <p className="text-sm font-semibold">{formatCurrency(totals.averageBuyIn, currency)}</p>
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Avg buy-in</p>
+                <p className="mt-1 text-base font-semibold">{formatCurrency(totals.averageBuyIn, currency)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Avg result</p>
-                <p className={`text-sm font-semibold ${metricTone(totals.averageSessionResult)}`}>
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Avg result</p>
+                <p className={`mt-1 text-base font-semibold ${metricTone(totals.averageSessionResult)}`}>
                   {formatCurrency(totals.averageSessionResult, currency)}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Biggest win</p>
-                <p className={`text-sm font-semibold ${metricTone(totals.biggestWin)}`}>
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Biggest win</p>
+                <p className={`mt-1 text-base font-semibold ${metricTone(totals.biggestWin)}`}>
                   {formatCurrency(totals.biggestWin, currency)}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Biggest loss</p>
-                <p className={`text-sm font-semibold ${metricTone(totals.biggestLoss)}`}>
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Biggest loss</p>
+                <p className={`mt-1 text-base font-semibold ${metricTone(totals.biggestLoss)}`}>
                   {formatCurrency(totals.biggestLoss, currency)}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-3">
-                <p className="text-[11px] text-muted-foreground">Best game type</p>
-                <p className="truncate text-sm font-semibold">
+              <CardContent className="px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Best game</p>
+                <p className="mt-1 truncate text-base font-semibold">
                   {bestGameType ? bestGameType.gameType : "N/A"}
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-sm">Bankroll trend snapshot</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Bankroll trend snapshot</CardTitle>
               </CardHeader>
-              <CardContent className="h-60">
+              <CardContent className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={bankrollTimeline} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke={chartGrid} vertical={false} />
@@ -718,51 +1012,53 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Quick performance</CardTitle>
+                <CardTitle className="text-sm font-semibold">Quick performance</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between rounded-md border border-border/70 px-2 py-1.5">
+              <CardContent className="space-y-2 text-[13px]">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
                   <span className="text-muted-foreground">Longest upswing</span>
-                  <span>{streak.longestUpswing}</span>
+                  <span className="font-medium">{streak.longestUpswing}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-md border border-border/70 px-2 py-1.5">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
                   <span className="text-muted-foreground">Longest downswing</span>
-                  <span>{streak.longestDownswing}</span>
+                  <span className="font-medium">{streak.longestDownswing}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-md border border-border/70 px-2 py-1.5">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
                   <span className="text-muted-foreground">Current streak</span>
-                  <span>
+                  <span className="font-medium">
                     {streak.currentLength} {streak.currentDirection}
                   </span>
                 </div>
-                <Separator />
-                <div className="rounded-md border border-border/70 px-2 py-1.5">
-                  <p className="text-[11px] text-muted-foreground">Rule math</p>
-                  <p className="mt-1">baseline: {formatCurrency(ruleEval.effectiveBaseline, currency)}</p>
-                  <p>stop-loss: {formatCurrency(ruleEval.stopLossLine, currency)}</p>
-                  <p>trigger: {formatCurrency(ruleEval.triggerLine, currency)}</p>
+                <Separator className="my-1" />
+                <div className="rounded-lg border border-border/60 px-3 py-2.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Rule math</p>
+                  <div className="mt-1.5 space-y-0.5 text-xs">
+                    <p>baseline: {formatCurrency(ruleEval.effectiveBaseline, currency)}</p>
+                    <p>stop-loss: {formatCurrency(ruleEval.stopLossLine, currency)}</p>
+                    <p>trigger: {formatCurrency(ruleEval.triggerLine, currency)}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        <TabsContent value="sessions" className="space-y-3 pt-1 sm:space-y-4">
-          <div className="grid gap-3 lg:grid-cols-2">
+        <TabsContent value="sessions" className="space-y-4 pt-2 sm:space-y-5">
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
                   <PlusCircle className="size-4" />
                   {editingSessionId ? "Edit session" : "Quick-add session"}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-[13px]">
                   Profit/loss auto-calculates from invested and cashout.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <CardContent className="space-y-3.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">Date</label>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Date</label>
                     <Input
                       type="date"
                       value={sessionForm.date}
@@ -770,7 +1066,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">Game type</label>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Game type</label>
                     <Select
                       value={sessionForm.gameType}
                       onValueChange={(value) =>
@@ -791,9 +1087,9 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">Buy-in</label>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Buy-in</label>
                     <Input
                       inputMode="decimal"
                       value={sessionForm.buyIn}
@@ -802,7 +1098,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Entries / rebuys
                     </label>
                     <Input
@@ -813,7 +1109,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Total invested
                     </label>
                     <Input
@@ -826,7 +1122,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Cashout / return
                     </label>
                     <Input
@@ -838,9 +1134,9 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Duration (minutes)
                     </label>
                     <Input
@@ -853,7 +1149,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Tags (comma separated)
                     </label>
                     <Input
@@ -865,21 +1161,21 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Notes</label>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Notes</label>
                   <Textarea
                     value={sessionForm.notes}
                     onChange={(event) => updateSessionForm("notes", event.target.value)}
                     placeholder="Quick read on session quality and mistakes..."
                   />
                 </div>
-                <div className="rounded-lg border border-border/70 bg-muted/30 p-2">
-                  <p className="text-xs text-muted-foreground">Quick tag chips</p>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Quick tag chips</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {DEFAULT_TAGS.map((tag) => (
                       <Badge
                         key={tag}
                         variant="outline"
-                        className="cursor-pointer"
+                        className="cursor-pointer transition-colors hover:bg-muted/50"
                         onClick={() => appendTagToSessionForm(tag)}
                       >
                         {tag}
@@ -887,18 +1183,18 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border/70 bg-muted/30 p-2 text-xs">
+                <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[13px]">
                   <span className="text-muted-foreground">Session P/L preview: </span>
-                  <span className={metricTone(previewProfitLoss)}>
+                  <span className={`font-semibold ${metricTone(previewProfitLoss)}`}>
                     {formatCurrency(previewProfitLoss, currency)}
                   </span>
                 </div>
 
                 {sessionError ? (
-                  <p className="text-xs text-red-300">{sessionError}</p>
+                  <p className="text-[13px] font-medium text-red-300">{sessionError}</p>
                 ) : null}
-                <div className="flex gap-2">
-                  <Button onClick={upsertSession} className="flex-1">
+                <div className="flex gap-2 pt-1">
+                  <Button onClick={upsertSession} className="flex-1 font-semibold">
                     {editingSessionId ? "Save changes" : "Add session"}
                   </Button>
                   {editingSessionId ? (
@@ -911,15 +1207,15 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
                   <Filter className="size-4" />
                   Session filters
                 </CardTitle>
-                <CardDescription>Filter by game type, tag, and time range.</CardDescription>
+                <CardDescription className="text-[13px]">Filter by game type, tag, and time range.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <CardContent className="space-y-3.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   <Select
                     value={filters.range}
                     onValueChange={(value) =>
@@ -979,15 +1275,15 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   </Select>
                 </div>
 
-                <div className="rounded-lg border border-border/70 p-3 text-sm">
+                <div className="rounded-lg border border-border/60 bg-muted/10 px-3.5 py-2.5 text-[13px]">
                   <p className="text-muted-foreground">
-                    Showing <span className="font-medium text-foreground">{filteredSessions.length}</span>{" "}
-                    sessions.
+                    Showing <span className="font-semibold text-foreground">{filteredSessions.length}</span>{" "}
+                    sessions
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-border/70 p-3">
-                  <p className="mb-2 text-xs text-muted-foreground">Popular tags</p>
+                <div className="rounded-lg border border-border/60 p-3.5">
+                  <p className="mb-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Popular tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {allTags.length ? (
                       allTags.map((tag) => (
@@ -1017,10 +1313,10 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </div>
 
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">Session history</CardTitle>
-                <div className="flex items-center gap-1 rounded-md border border-border/70 p-1">
+                <CardTitle className="text-base font-semibold">Session history</CardTitle>
+                <div className="flex items-center gap-1 rounded-lg border border-border/60 p-1">
                   <Button
                     variant={sessionHistoryView === "table" ? "default" : "ghost"}
                     size="sm"
@@ -1119,23 +1415,23 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                   </Table>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {filteredSessions.length ? (
                     filteredSessions.map((session) => (
                       <div
                         key={session.id}
-                        className="rounded-lg border border-border/70 bg-muted/10 p-3 text-sm"
+                        className="rounded-lg border border-border/60 bg-muted/10 p-3.5 text-sm"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
-                            <p className="font-medium">{session.gameType}</p>
-                            <p className="text-xs text-muted-foreground">{session.date}</p>
+                            <p className="font-semibold">{session.gameType}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{session.date}</p>
                           </div>
-                          <p className={`text-sm font-semibold ${metricTone(session.profitLoss)}`}>
+                          <p className={`text-base font-bold ${metricTone(session.profitLoss)}`}>
                             {formatCurrency(session.profitLoss, currency)}
                           </p>
                         </div>
-                        <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                        <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-xs text-muted-foreground">
                           <p>Invested: {formatCurrency(session.totalInvested, currency)}</p>
                           <p>Cashout: {formatCurrency(session.cashout, currency)}</p>
                           <p>Duration: {formatDuration(session.durationMinutes)}</p>
@@ -1150,10 +1446,10 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                             ))}
                           </div>
                         ) : null}
-                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                        <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                           {session.notes || "No notes."}
                         </p>
-                        <div className="mt-3 flex justify-end gap-1">
+                        <div className="mt-3 flex justify-end gap-1.5">
                           <Button variant="outline" size="sm" onClick={() => startEditSession(session)}>
                             Edit
                           </Button>
@@ -1178,17 +1474,17 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="withdrawals" className="space-y-3 pt-1 sm:space-y-4">
-          <div className="grid gap-3 lg:grid-cols-2">
+        <TabsContent value="withdrawals" className="space-y-4 pt-2 sm:space-y-5">
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
                   <ArrowDownCircle className="size-4" />
                   Log withdrawal
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <CardContent className="space-y-3.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <Input
                     type="date"
                     value={withdrawalForm.date}
@@ -1212,21 +1508,21 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     setWithdrawalForm((prev) => ({ ...prev, note: event.target.value }))
                   }
                 />
-                <Button size="sm" onClick={addWithdrawal} className="w-full">
+                <Button size="sm" onClick={addWithdrawal} className="w-full font-semibold">
                   Add withdrawal
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
                   <ArrowUpCircle className="size-4" />
                   Log deposit
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <CardContent className="space-y-3.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <Input
                     type="date"
                     value={depositForm.date}
@@ -1250,7 +1546,7 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                     setDepositForm((prev) => ({ ...prev, note: event.target.value }))
                   }
                 />
-                <Button variant="outline" size="sm" onClick={addDeposit} className="w-full">
+                <Button variant="outline" size="sm" onClick={addDeposit} className="w-full font-semibold">
                   Add deposit
                 </Button>
               </CardContent>
@@ -1258,23 +1554,23 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </div>
           {moneyError ? <p className="text-sm text-red-300">{moneyError}</p> : null}
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Withdrawal history</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Withdrawal history</CardTitle>
+                <CardDescription className="text-[13px]">
                   Secured outside bankroll:{" "}
-                  <span className="font-medium">
+                  <span className="font-semibold text-foreground">
                     {formatCurrency(totals.totalWithdrawals, currency)}
                   </span>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2.5">
                 {sortedWithdrawals.length ? (
                   sortedWithdrawals.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-border/70 p-3 text-sm"
+                      className="flex items-center justify-between rounded-lg border border-border/60 p-3.5 text-sm"
                     >
                       <div>
                         <p className="font-medium">{formatCurrency(item.amount, currency)}</p>
@@ -1298,21 +1594,21 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Deposit history</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Deposit history</CardTitle>
+                <CardDescription className="text-[13px]">
                   Added to bankroll:{" "}
-                  <span className="font-medium">
+                  <span className="font-semibold text-foreground">
                     {formatCurrency(totals.totalDeposits, currency)}
                   </span>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2.5">
                 {sortedDeposits.length ? (
                   sortedDeposits.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-border/70 p-3 text-sm"
+                      className="flex items-center justify-between rounded-lg border border-border/60 p-3.5 text-sm"
                     >
                       <div>
                         <p className="font-medium">{formatCurrency(item.amount, currency)}</p>
@@ -1333,8 +1629,8 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </div>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-3 pt-1 sm:space-y-4">
-          <div className="grid grid-cols-3 gap-2">
+        <TabsContent value="analytics" className="space-y-4 pt-2 sm:space-y-5">
+          <div className="grid grid-cols-3 gap-2.5">
             <Button
               variant={filters.range === "7d" ? "default" : "outline"}
               size="sm"
@@ -1359,8 +1655,8 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </div>
 
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
                 <BarChart3 className="size-4" />
                 Bankroll over time
               </CardTitle>
@@ -1399,10 +1695,10 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </CardContent>
           </Card>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Profit/Loss by game type</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Profit/Loss by game type</CardTitle>
               </CardHeader>
               <CardContent className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1435,8 +1731,8 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Withdrawals over time</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Withdrawals over time</CardTitle>
               </CardHeader>
               <CardContent className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1486,11 +1782,11 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Session type summary</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Session type summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-auto rounded-lg border border-border/70">
+              <div className="overflow-auto rounded-lg border border-border/60">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1522,17 +1818,17 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="data" className="space-y-3 pt-1 sm:space-y-4">
+        <TabsContent value="data" className="space-y-4 pt-2 sm:space-y-5">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Backup and restore</CardTitle>
-              <CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Backup and restore</CardTitle>
+              <CardDescription className="text-[13px]">
                 Export full JSON backups or import a previous backup.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={handleExport}>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2.5">
+                <Button size="sm" onClick={handleExport} className="font-semibold">
                   <Download className="size-4" />
                   Export JSON
                 </Button>
@@ -1573,9 +1869,9 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
                 onChange={(event) => setImportText(event.target.value)}
                 placeholder="Paste full JSON backup here and click Import JSON."
               />
-              {importError ? <p className="text-sm text-red-300">{importError}</p> : null}
-              {importSuccess ? <p className="text-sm text-emerald-300">{importSuccess}</p> : null}
-              <div className="flex flex-wrap gap-2">
+              {importError ? <p className="text-[13px] font-medium text-red-300">{importError}</p> : null}
+              {importSuccess ? <p className="text-[13px] font-medium text-emerald-300">{importSuccess}</p> : null}
+              <div className="flex flex-wrap gap-2.5">
                 <Button variant="outline" size="sm" onClick={handleImportFromText}>
                   <Upload className="size-4" />
                   Import JSON
@@ -1607,14 +1903,14 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Current bankroll formula</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Current bankroll formula</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="text-muted-foreground">
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-[13px] text-muted-foreground">
                 bankroll = starting bankroll + deposits - withdrawals + total session P/L
               </p>
-              <div className="rounded-lg border border-border/70 p-3">
+              <div className="rounded-lg border border-border/60 bg-muted/10 p-3.5">
                 <p>
                   {formatCurrency(data.settings.startingBankroll, currency)} +{" "}
                   {formatCurrency(totals.totalDeposits, currency)} -{" "}
