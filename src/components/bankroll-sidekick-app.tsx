@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Area,
@@ -34,6 +34,7 @@ import {
   Upload,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,6 +54,13 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +128,14 @@ interface MoneyFormState {
   note: string
 }
 
+interface QuickSessionFormState {
+  buyIn: string
+  cashout: string
+  gameType: GameType
+  durationMinutes: number | null
+  notes: string
+}
+
 const EMPTY_SESSION_FORM: SessionFormState = {
   date: new Date().toISOString().slice(0, 10),
   gameType: "Spins",
@@ -136,6 +152,14 @@ const EMPTY_MONEY_FORM: MoneyFormState = {
   date: new Date().toISOString().slice(0, 10),
   amount: "",
   note: "",
+}
+
+const EMPTY_QUICK_SESSION_FORM: QuickSessionFormState = {
+  buyIn: "",
+  cashout: "",
+  gameType: "Cash",
+  durationMinutes: null,
+  notes: "",
 }
 
 function statusUi(status: RuleStatus) {
@@ -184,6 +208,8 @@ const chartTooltipStyle = {
   padding: "8px 12px",
 }
 
+const QUICK_DURATION_PRESETS = [5, 10, 15, 30] as const
+
 function compactNumber(value: number) {
   return Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(
     value
@@ -194,12 +220,37 @@ function barTone(value: number) {
   return value >= 0 ? "#93c5fd" : "#fca5a5"
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function nearestPresetDuration(minutes: number, presets: readonly number[]) {
+  let best = presets[0] ?? minutes
+  let bestDelta = Math.abs(minutes - best)
+  for (const preset of presets) {
+    const delta = Math.abs(minutes - preset)
+    if (delta < bestDelta) {
+      best = preset
+      bestDelta = delta
+    }
+  }
+  return best
+}
+
 export function BankrollSidekickApp({ data, onChange }: Props) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [sessionHistoryView, setSessionHistoryView] = useState<"table" | "cards">("cards")
   const [sessionForm, setSessionForm] = useState<SessionFormState>(EMPTY_SESSION_FORM)
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [sessionError, setSessionError] = useState("")
+
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickForm, setQuickForm] = useState<QuickSessionFormState>(EMPTY_QUICK_SESSION_FORM)
+  const [quickError, setQuickError] = useState("")
+  const [quickOpenedAt, setQuickOpenedAt] = useState<number | null>(null)
+  const [quickSuggestedDuration, setQuickSuggestedDuration] = useState<number | null>(null)
+  const quickBuyInRef = useRef<HTMLInputElement | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const [withdrawalForm, setWithdrawalForm] = useState<MoneyFormState>(EMPTY_MONEY_FORM)
   const [depositForm, setDepositForm] = useState<MoneyFormState>(EMPTY_MONEY_FORM)
@@ -491,6 +542,92 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
   )
   const ruleBuffer = round2(totals.bankroll - ruleEval.stopLossLine)
 
+  const durationPresets = QUICK_DURATION_PRESETS
+
+  useEffect(() => {
+    function update() {
+      setIsMobile(window.matchMedia("(max-width: 640px)").matches)
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
+
+  function openQuickSession() {
+    setQuickError("")
+    setQuickOpenedAt(Date.now())
+    setQuickOpen(true)
+  }
+
+  useEffect(() => {
+    if (!quickOpen) return
+    const timer = window.setTimeout(() => {
+      quickBuyInRef.current?.focus()
+      quickBuyInRef.current?.select?.()
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [quickOpen])
+
+  function resetQuickForm() {
+    setQuickForm(EMPTY_QUICK_SESSION_FORM)
+    setQuickError("")
+    setQuickOpenedAt(null)
+    setQuickSuggestedDuration(null)
+  }
+
+  useEffect(() => {
+    if (!quickOpen || !quickOpenedAt) return
+    if (quickForm.durationMinutes !== null) return
+
+    function computeSuggestion() {
+      const openedAt = quickOpenedAt
+      if (!openedAt) return null
+      const elapsedMinutes = Math.round((Date.now() - openedAt) / 60000)
+      const clamped = clamp(elapsedMinutes, 1, 240)
+      return nearestPresetDuration(clamped, durationPresets)
+    }
+
+    function updateSuggestion() {
+      setQuickSuggestedDuration(computeSuggestion())
+    }
+
+    updateSuggestion()
+    const interval = window.setInterval(updateSuggestion, 15000)
+    return () => window.clearInterval(interval)
+  }, [quickOpen, quickOpenedAt, quickForm.durationMinutes, durationPresets])
+
+  function submitQuickSession() {
+    setQuickError("")
+    const buyIn = round2(Math.max(0, toNumber(quickForm.buyIn, 0)))
+    if (buyIn <= 0) {
+      setQuickError("Buy-in is required.")
+      return
+    }
+
+    const session = buildSession({
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      gameType: quickForm.gameType,
+      buyIn,
+      entries: 1,
+      totalInvested: buyIn,
+      cashout: round2(Math.max(0, toNumber(quickForm.cashout, 0))),
+      notes: quickForm.notes.trim(),
+      durationMinutes:
+        quickForm.durationMinutes ??
+        (quickOpenedAt ? quickSuggestedDuration ?? 0 : 0),
+      tags: [],
+    })
+
+    onChange({
+      ...data,
+      sessions: sortByDateDesc([session, ...data.sessions]),
+    })
+    setQuickOpen(false)
+    resetQuickForm()
+    setActiveTab("sessions")
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-3 pb-8 sm:gap-6 sm:p-5 sm:pb-10">
       <header className="sticky top-0 z-30 -mx-3 border-b border-border/60 bg-background/90 px-3 py-3 backdrop-blur-md sm:-mx-5 sm:px-5">
@@ -527,6 +664,162 @@ export function BankrollSidekickApp({ data, onChange }: Props) {
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>
+
+        {activeTab === "dashboard" ? (
+          <>
+            <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex sm:right-6 sm:bottom-6">
+              <Button
+                className="pointer-events-auto h-11 rounded-full px-4 text-sm font-semibold shadow-lg shadow-black/25"
+                onClick={openQuickSession}
+              >
+                <PlusCircle className="size-4" />
+                + Session
+              </Button>
+            </div>
+
+            <Sheet open={quickOpen} onOpenChange={setQuickOpen}>
+              <SheetContent
+                side={isMobile ? "bottom" : "right"}
+                className={cn(
+                  "gap-0 p-0",
+                  isMobile
+                    ? "h-auto max-h-[85vh] rounded-t-2xl border-t border-border/60"
+                    : "w-[22rem] border-l border-border/60"
+                )}
+              >
+                <div className="p-4 sm:p-5">
+                  <SheetHeader className="p-0">
+                    <SheetTitle className="text-base font-semibold">Quick add session</SheetTitle>
+                    <SheetDescription className="text-[13px]">
+                      Minimal fields for fast logging.
+                    </SheetDescription>
+                  </SheetHeader>
+
+                  <div className="mt-4 space-y-3.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Buy-in
+                        </label>
+                        <Input
+                          ref={quickBuyInRef}
+                          inputMode="decimal"
+                          value={quickForm.buyIn}
+                          onChange={(event) =>
+                            setQuickForm((prev) => ({ ...prev, buyIn: event.target.value }))
+                          }
+                          placeholder="200"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Cashout
+                        </label>
+                        <Input
+                          inputMode="decimal"
+                          value={quickForm.cashout}
+                          onChange={(event) =>
+                            setQuickForm((prev) => ({ ...prev, cashout: event.target.value }))
+                          }
+                          placeholder="450"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Game type
+                      </label>
+                      <Select
+                        value={quickForm.gameType}
+                        onValueChange={(value) =>
+                          setQuickForm((prev) => ({ ...prev, gameType: value as GameType }))
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Spins">Spins</SelectItem>
+                          <SelectItem value="MTT">MTT</SelectItem>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Duration
+                        </label>
+                        {quickForm.durationMinutes === null && quickSuggestedDuration !== null ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            suggested {quickSuggestedDuration}m
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {durationPresets.map((minutes) => {
+                          const active = quickForm.durationMinutes === minutes
+                          return (
+                            <Button
+                              key={minutes}
+                              type="button"
+                              size="sm"
+                              variant={active ? "default" : "outline"}
+                              className="h-8 rounded-full px-3 text-xs font-semibold"
+                              onClick={() =>
+                                setQuickForm((prev) => ({
+                                  ...prev,
+                                  durationMinutes: active ? null : minutes,
+                                }))
+                              }
+                            >
+                              {minutes}m
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Notes (optional)
+                      </label>
+                      <Textarea
+                        value={quickForm.notes}
+                        onChange={(event) =>
+                          setQuickForm((prev) => ({ ...prev, notes: event.target.value }))
+                        }
+                        placeholder="Quick note..."
+                      />
+                    </div>
+
+                    {quickError ? (
+                      <p className="text-[13px] font-medium text-red-300">{quickError}</p>
+                    ) : null}
+
+                    <div className="flex gap-2 pt-1">
+                      <Button className="flex-1 font-semibold" onClick={submitQuickSession}>
+                        Add session
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setQuickOpen(false)
+                          resetQuickForm()
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
+        ) : null}
 
         <TabsContent value="dashboard" className="space-y-4 pt-2 sm:space-y-5">
           <div className="grid gap-4 lg:grid-cols-3">
