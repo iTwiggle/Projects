@@ -28,6 +28,15 @@ type ProgressionMeta = {
   total: number;
 };
 
+export type ProgressionSignals = {
+  completed: number;
+  rerolled: number;
+  skipped: number;
+  proofProvided: number;
+  streak: number;
+  total: number;
+};
+
 const STATUS_PHRASES: Record<ProgressionState, string[]> = {
   "warming-up": [
     "Warming up. Keep it simple and consistent.",
@@ -230,6 +239,29 @@ export function deriveProgressionState(
 
 export function getProgressionState(): ProgressionState {
   return deriveProgressionState(readProgressHistory());
+}
+
+export function getRecentProgressActions(
+  limit = HISTORY_WINDOW,
+): Array<{
+  type: ProgressActionType;
+  taskId?: string;
+  timestamp: number;
+  proofProvided?: boolean;
+}> {
+  return readProgressHistory().slice(-Math.max(1, limit));
+}
+
+export function getRecentProgressSignals(limit = HISTORY_WINDOW): ProgressionSignals {
+  const summary = summarizeHistory(readProgressHistory().slice(-Math.max(1, limit)));
+  return {
+    completed: summary.completedCount,
+    rerolled: summary.rerollCount,
+    skipped: summary.skipCount,
+    proofProvided: summary.proofCount,
+    streak: summary.streak,
+    total: summary.total,
+  };
 }
 
 export function recordProgressAction(action: ProgressAction): ProgressionState {

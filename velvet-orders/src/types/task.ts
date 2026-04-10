@@ -46,3 +46,41 @@ export type OnboardingPreferences = {
   mode?: TaskMode | TaskMode[];
   tone?: ToneProfile;
 };
+
+export type TaskScoreBreakdown = {
+  baseScore: number;
+  preferredCategoryBonus: number;
+  intensityFitBonus: number;
+  recentCompletionBonus: number;
+  rerollPenalty: number;
+  skipPenalty: number;
+  repetitionPenalty: number;
+  proofBonus: number;
+  finalScore: number;
+};
+
+export type AdaptiveScoredCandidate = {
+  taskId: string;
+  title: string;
+  category: string;
+  intensity: number;
+  finalScore: number;
+  breakdown: TaskScoreBreakdown;
+};
+
+export type AdaptivePickResult = {
+  selectedTask: Task | null;
+  targetIntensity: number;
+  intensityAdjustment: number;
+  eligibleCount: number;
+  topPoolSize: number;
+  signals: {
+    completed: number;
+    rerolled: number;
+    skipped: number;
+    proofProvided: number;
+    streak: number;
+    total: number;
+  };
+  candidates: AdaptiveScoredCandidate[];
+};

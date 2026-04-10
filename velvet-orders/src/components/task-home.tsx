@@ -4,11 +4,12 @@ import { useMemo, useState } from "react";
 
 import {
   getAllBuiltInTasks,
+  pickAdaptiveTask,
   getRerollsRemaining,
   markRerollUsed,
   onboardingStorageKey,
-  pickRandomTask,
   readOnboardingPreferences,
+  type AdaptiveTaskPickResult,
 } from "@/lib/task-picker";
 import {
   getProgressionState,
@@ -53,12 +54,16 @@ function formatPreferences(preferences: OnboardingPreferences | null) {
 export function TaskHome() {
   const allTasks = useMemo(() => getAllBuiltInTasks(), []);
   const initialPreferences = useMemo(() => readOnboardingPreferences(), []);
-  const initialTask = useMemo(
-    () => pickRandomTask(allTasks, initialPreferences),
+  const initialPick = useMemo(
+    () => pickAdaptiveTask(allTasks, initialPreferences),
     [allTasks, initialPreferences],
   );
+  const initialTask = initialPick.selectedTask;
 
   const [task, setTask] = useState<Task | null>(initialTask);
+  const [lastPickDebug, setLastPickDebug] = useState<AdaptiveTaskPickResult>(
+    initialPick,
+  );
   const [isCompleted, setIsCompleted] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(
     initialTask
@@ -128,7 +133,8 @@ export function TaskHome() {
     if (!task) return;
 
     const preferences = readOnboardingPreferences();
-    const nextTask = pickRandomTask(allTasks, preferences, task.id);
+    const nextPick = pickAdaptiveTask(allTasks, preferences, task.id);
+    const nextTask = nextPick.selectedTask;
 
     if (!nextTask) {
       const nextProgressionState = recordProgressAction({
@@ -156,6 +162,7 @@ export function TaskHome() {
     setIsCompleted(false);
 
     setTask(nextTask);
+    setLastPickDebug(nextPick);
     setFeedback("Fresh task ready.");
   }
 
@@ -279,6 +286,59 @@ export function TaskHome() {
           >
             {feedback}
           </p>
+        ) : null}
+
+        {process.env.NODE_ENV !== "production" ? (
+          <details className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+            <summary className="cursor-pointer font-medium text-slate-700">
+              Dev scoring debug
+            </summary>
+            <div className="mt-3 space-y-2">
+              <p>
+                Adaptive target intensity:{" "}
+                <span className="font-medium text-slate-700">
+                  {lastPickDebug.targetIntensity}
+                </span>{" "}
+                (adjustment {lastPickDebug.intensityAdjustment >= 0 ? "+" : ""}
+                {lastPickDebug.intensityAdjustment})
+              </p>
+              <p>
+                Signals — completed: {lastPickDebug.signals.completed} | rerolled:{" "}
+                {lastPickDebug.signals.rerolled} | skipped:{" "}
+                {lastPickDebug.signals.skipped} | proof:{" "}
+                {lastPickDebug.signals.proofProvided} | streak:{" "}
+                {lastPickDebug.signals.streak}
+              </p>
+              <p>
+                Candidate pool: {lastPickDebug.topPoolSize} /{" "}
+                {lastPickDebug.eligibleCount} eligible
+              </p>
+              <ul className="space-y-2">
+                {lastPickDebug.candidates.map((candidate) => (
+                  <li
+                    key={candidate.taskId}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                  >
+                    <p className="font-medium text-slate-700">
+                      {candidate.title} ({candidate.category}) —{" "}
+                      {candidate.finalScore.toFixed(2)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      base {candidate.breakdown.baseScore.toFixed(2)} | pref{" "}
+                      {candidate.breakdown.preferredCategoryBonus.toFixed(2)} |
+                      intensity {candidate.breakdown.intensityFitBonus.toFixed(2)} |
+                      completion{" "}
+                      {candidate.breakdown.recentCompletionBonus.toFixed(2)} | reroll{" "}
+                      {candidate.breakdown.rerollPenalty.toFixed(2)} | skip{" "}
+                      {candidate.breakdown.skipPenalty.toFixed(2)} | repeat{" "}
+                      {candidate.breakdown.repetitionPenalty.toFixed(2)} | proof{" "}
+                      {candidate.breakdown.proofBonus.toFixed(2)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
         ) : null}
       </section>
     </main>
