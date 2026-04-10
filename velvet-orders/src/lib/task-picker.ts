@@ -12,6 +12,14 @@ type RerollCounter = {
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
+const asArray = <T,>(value: T | T[] | undefined): T[] => {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+};
+
 const getRandomItem = <T,>(items: T[]): T | null => {
   if (items.length === 0) {
     return null;
@@ -49,14 +57,10 @@ export const readOnboardingPreferences =
 
       const maybePrefs = parsed as Partial<OnboardingPreferences>;
       return {
-        categories: Array.isArray(maybePrefs.categories)
-          ? maybePrefs.categories
-          : [],
-        publicLevels: Array.isArray(maybePrefs.publicLevels)
-          ? maybePrefs.publicLevels
-          : [],
-        times: Array.isArray(maybePrefs.times) ? maybePrefs.times : [],
-        modes: Array.isArray(maybePrefs.modes) ? maybePrefs.modes : [],
+        category: asArray(maybePrefs.category),
+        publicLevel: asArray(maybePrefs.publicLevel),
+        time: asArray(maybePrefs.time),
+        mode: asArray(maybePrefs.mode),
       };
     } catch {
       return null;
@@ -80,16 +84,18 @@ export const getEligibleTasks = (
   }
 
   return tasks.filter((task) => {
-    const categoryMatch = matchesPreference(preferences.categories, task.category);
+    const categoryMatch = matchesPreference(
+      asArray(preferences.category),
+      task.category
+    );
     const publicLevelMatch = matchesPreference(
-      preferences.publicLevels,
+      asArray(preferences.publicLevel),
       task.publicLevel
     );
-    const timeMatch = matchesPreference(preferences.times, task.time);
+    const timeMatch = matchesPreference(asArray(preferences.time), task.time);
     const modeMatch =
-      !preferences.modes ||
-      preferences.modes.length === 0 ||
-      task.modes.some((mode) => preferences.modes?.includes(mode));
+      asArray(preferences.mode).length === 0 ||
+      task.modes.some((mode) => asArray(preferences.mode).includes(mode));
 
     return categoryMatch && publicLevelMatch && timeMatch && modeMatch;
   });
@@ -149,8 +155,6 @@ export const getRerollsRemaining = (): number => {
   const counter = readRerollCounter();
   return Math.max(0, MAX_DAILY_REROLLS - counter.count);
 };
-
-export const canUseReroll = (): boolean => getRerollsRemaining() > 0;
 
 export const markRerollUsed = (): { allowed: boolean; remaining: number } => {
   const counter = readRerollCounter();
