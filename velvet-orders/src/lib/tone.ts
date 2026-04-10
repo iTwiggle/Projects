@@ -1,4 +1,8 @@
-import type { OnboardingPreferences, ToneProfile } from "@/types/task";
+import type {
+  OnboardingPreferences,
+  ProgressionState,
+  ToneProfile,
+} from "@/types/task";
 
 type TonePhraseSet = {
   openers: string[];
@@ -140,6 +144,28 @@ const VALID_TONES: ToneProfile[] = [
   "dominant-teasing",
 ];
 
+const PROGRESSION_TONE_OVERRIDES: Record<
+  ProgressionState,
+  { opener?: string[]; closer?: string[] }
+> = {
+  "warming-up": {
+    opener: ["Start gently."],
+    closer: ["Settle in and keep it simple."],
+  },
+  steady: {
+    opener: ["You know the rhythm."],
+    closer: ["Keep this line steady."],
+  },
+  "locked-in": {
+    opener: ["Strong form. Keep it exact."],
+    closer: ["Maintain that standard."],
+  },
+  slipping: {
+    opener: ["Reset now."],
+    closer: ["Tighten up and complete it cleanly."],
+  },
+};
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (!value) {
     return [];
@@ -176,15 +202,22 @@ export function resolveToneFromPreferences(
   return firstValid ?? DEFAULT_TONE;
 }
 
-export function applyTone(taskText: string, tone: ToneProfile): string {
+export function applyTone(
+  taskText: string,
+  tone: ToneProfile,
+  progression?: ProgressionState,
+): string {
   const normalizedTask = taskText.trim();
   if (!normalizedTask) {
     return taskText;
   }
 
   const phrases = TONE_PHRASES[tone];
-  const opener = pickFromPool(phrases.openers, `${tone}:${normalizedTask}:open`);
-  const closer = pickFromPool(phrases.closers, `${tone}:${normalizedTask}:close`);
+  const override = progression ? PROGRESSION_TONE_OVERRIDES[progression] : undefined;
+  const openerPool = [...(phrases.openers ?? []), ...(override?.opener ?? [])];
+  const closerPool = [...(phrases.closers ?? []), ...(override?.closer ?? [])];
+  const opener = pickFromPool(openerPool, `${tone}:${progression ?? "none"}:${normalizedTask}:open`);
+  const closer = pickFromPool(closerPool, `${tone}:${progression ?? "none"}:${normalizedTask}:close`);
   return `${opener} ${normalizedTask} ${closer}`;
 }
 

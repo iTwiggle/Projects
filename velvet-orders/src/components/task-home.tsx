@@ -11,6 +11,14 @@ import {
   readOnboardingPreferences,
 } from "@/lib/task-picker";
 import {
+  getProgressionState,
+  getProgressionStatusLine,
+  recordProgressAction,
+  getProgressionCompletionPhrase,
+  type ProgressionState,
+  progressionStorageKey,
+} from "@/lib/progression";
+import {
   applyCustomFlavor,
   applyTone,
   customFlavorKey,
@@ -58,6 +66,9 @@ export function TaskHome() {
     getRerollsRemaining(),
   );
   const [activeFilters] = useState(() => formatPreferences(initialPreferences));
+  const [progressionState, setProgressionState] = useState<ProgressionState>(() =>
+    getProgressionState(),
+  );
   const activeTone = useMemo<ToneProfile>(
     () => activeFilters.tone ?? "affirming",
     [activeFilters.tone],
@@ -74,20 +85,42 @@ export function TaskHome() {
       return "";
     }
 
-    const withTone = applyTone(task.text, activeTone);
+    const withTone = applyTone(task.text, activeTone, progressionState);
     return applyCustomFlavor(withTone, customFlavor);
-  }, [activeTone, customFlavor, task]);
+  }, [activeTone, customFlavor, progressionState, task]);
   const toneStatusPhrase = useMemo(
     () => getToneStatusPhrase(activeTone),
     [activeTone],
   );
+  const progressionStatusLine = useMemo(
+    () => getProgressionStatusLine(progressionState),
+    [progressionState],
+  );
+
+  function pushProgressAction(action: ProgressAction) {
+    const nextState = recordProgressAction(action);
+    setProgressionState(nextState);
+  }
 
   function onComplete() {
     if (!task) return;
     setIsCompleted(true);
+    const nextProgressionState = recordProgressAction({
+      type: "complete",
+      taskId: task.id,
+      proofProvided: false,
+    });
+    setProgressionState(nextProgressionState);
     const rewardPhrase = getToneRewardPhrase(activeTone);
+    const progressionCompletion = getProgressionCompletionPhrase(
+      nextProgressionState,
+    );
     setFeedback(
-      [task.completionText ?? "Task completed. Nicely done.", rewardPhrase]
+      [
+        task.completionText ?? "Task completed. Nicely done.",
+        progressionCompletion,
+        rewardPhrase,
+      ]
         .filter(Boolean)
         .join(" "),
     );
@@ -100,6 +133,11 @@ export function TaskHome() {
     const nextTask = pickRandomTask(allTasks, preferences, task.id);
 
     if (!nextTask) {
+      const nextProgressionState = recordProgressAction({
+        type: "skip",
+        taskId: task.id,
+      });
+      setProgressionState(nextProgressionState);
       setFeedback("No additional eligible task is available right now.");
       return;
     }
@@ -111,6 +149,11 @@ export function TaskHome() {
       return;
     }
 
+    const nextProgressionState = recordProgressAction({
+      type: "reroll",
+      taskId: task.id,
+    });
+    setProgressionState(nextProgressionState);
     setRerollsRemaining(rerollState.remaining);
     setIsCompleted(false);
 
@@ -157,6 +200,12 @@ export function TaskHome() {
             | mode:{" "}
             {activeFilters.mode.length > 0 ? activeFilters.mode.join(", ") : "any"}{" "}
             | tone: {normalizeLabel(activeTone)}
+          </p>
+          <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+            Progression: {normalizeLabel(progressionState)}.
+          </p>
+          <p className="mx-auto mt-1 max-w-2xl text-xs leading-5 text-slate-500/90">
+            {progressionStatusLine}
           </p>
           {toneStatusPhrase ? (
             <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-rose-500/90">

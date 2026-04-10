@@ -9,6 +9,12 @@ export type ToneProfile =
   | "teasing"
   | "dominant-teasing";
 
+export type ProgressionState =
+  | "warming-up"
+  | "steady"
+  | "locked-in"
+  | "slipping";
+
 export type TaskMode = ToneProfile;
 
 export type Task = {
