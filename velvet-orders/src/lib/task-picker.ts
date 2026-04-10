@@ -3,7 +3,12 @@ import {
   getRecentProgressActions,
   getRecentProgressSignals,
 } from "@/lib/progression";
-import type { AdaptivePickResult, OnboardingPreferences, Task } from "@/types/task";
+import type {
+  AdaptivePickResult,
+  OnboardingPreferences,
+  Task,
+  TaskWithPackMeta,
+} from "@/types/task";
 
 const ONBOARDING_KEY = "velvet-orders:onboarding-preferences";
 const REROLL_KEY = "velvet-orders:reroll-counter";
@@ -37,7 +42,7 @@ type ProgressActionSnapshot = {
   proofProvided?: boolean;
 };
 
-type TaskLookup = Map<string, Task>;
+type TaskLookup = Map<string, TaskWithPackMeta>;
 
 export type TaskScoreBreakdown = {
   baseScore: number;
@@ -52,7 +57,7 @@ export type TaskScoreBreakdown = {
 };
 
 export type ScoredTaskCandidate = {
-  task: Task;
+  task: TaskWithPackMeta;
   finalScore: number;
   breakdown: TaskScoreBreakdown;
 };
@@ -132,7 +137,7 @@ const weightedRandomPick = (
   return candidates[candidates.length - 1] ?? null;
 };
 
-const getTaskLookup = (tasks: Task[]): TaskLookup =>
+const getTaskLookup = (tasks: TaskWithPackMeta[]): TaskLookup =>
   new Map(tasks.map((task) => [task.id, task]));
 
 const average = (values: number[]): number => {
@@ -143,7 +148,7 @@ const average = (values: number[]): number => {
 };
 
 const getAdaptiveIntensityTarget = (
-  tasks: Task[],
+  tasks: TaskWithPackMeta[],
   recentActions: ProgressActionSnapshot[],
 ): { target: number; adjustment: number } => {
   const signals = getRecentProgressSignals(TASK_SCORING_TUNING.historyWindow);
@@ -186,7 +191,7 @@ const countRecentBy = (
 ) => actions.filter(predicate).length;
 
 const scoreTask = (
-  task: Task,
+  task: TaskWithPackMeta,
   preferences: OnboardingPreferences | null,
   recentActions: ProgressActionSnapshot[],
   taskLookup: TaskLookup,
@@ -350,7 +355,7 @@ export const getEligibleTasks = (
 };
 
 export const pickRandomTask = (
-  tasks: Task[],
+  tasks: TaskWithPackMeta[],
   preferences: OnboardingPreferences | null,
   excludeTaskId?: string
 ): Task | null => {
@@ -358,7 +363,7 @@ export const pickRandomTask = (
 };
 
 export const pickAdaptiveTask = (
-  tasks: Task[],
+  tasks: TaskWithPackMeta[],
   preferences: OnboardingPreferences | null,
   excludeTaskId?: string,
 ): AdaptiveTaskPickResult => {
@@ -407,6 +412,9 @@ export const pickAdaptiveTask = (
       title: candidate.task.title,
       category: candidate.task.category,
       intensity: candidate.task.intensity,
+      packId: candidate.task.packId,
+      packName: candidate.task.packName,
+      packSource: candidate.task.packSource,
       finalScore: Number(candidate.finalScore.toFixed(2)),
       breakdown: {
         ...candidate.breakdown,
@@ -423,7 +431,7 @@ export const pickAdaptiveTask = (
 };
 
 export const getAdaptivePickResult = (
-  tasks: Task[],
+  tasks: TaskWithPackMeta[],
   preferences: OnboardingPreferences | null,
   excludeTaskId?: string,
 ): AdaptivePickResult => {
