@@ -1,25 +1,198 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  getTaskPool,
+  getRerollsRemaining,
+  onboardingStorageKey,
+  pickRandomTask,
+  readOnboardingPreferences,
+  tryUseReroll,
+} from "@/lib/task-picker";
+import type { Task } from "@/types/task";
+
+function normalizeLabel(value: string) {
+  return value.replace(/-/g, " ");
+}
+
 export default function Home() {
+  const allTasks = useMemo(() => getTaskPool(), []);
+  const [task, setTask] = useState<Task | null>(null);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [rerollsRemaining, setRerollsRemaining] = useState(2);
+  const [activeFilters, setActiveFilters] = useState<{
+    category: string[];
+    publicLevel: string[];
+    time: string[];
+    mode: string[];
+  }>({ category: [], publicLevel: [], time: [], mode: [] });
+
+  useEffect(() => {
+    const preferences = readOnboardingPreferences();
+    const pickedTask = pickRandomTask(preferences);
+    setTask(pickedTask);
+    setRerollsRemaining(getRerollsRemaining());
+    setActiveFilters({
+      category: preferences?.category ?? [],
+      publicLevel: preferences?.publicLevel ?? [],
+      time: preferences?.time ?? [],
+      mode: preferences?.mode ?? [],
+    });
+    if (!pickedTask) {
+      setFeedback(
+        `No eligible task found for the current onboarding preferences in localStorage key "${onboardingStorageKey}".`,
+      );
+      return;
+    }
+    setFeedback(null);
+  }, [allTasks.length]);
+
+  function onComplete() {
+    if (!task) return;
+    setIsCompleted(true);
+    setFeedback(task.completionText ?? "Task completed. Nicely done.");
+  }
+
+  function onReroll() {
+    if (!task) return;
+
+    const rerollState = tryUseReroll();
+    if (!rerollState.allowed) {
+      setFeedback("You have used all rerolls for today.");
+      setRerollsRemaining(0);
+      return;
+    }
+
+    const preferences = readOnboardingPreferences();
+    const nextTask = pickRandomTask(preferences, task.id);
+    setRerollsRemaining(rerollState.remaining);
+    setIsCompleted(false);
+
+    if (!nextTask) {
+      setFeedback("No additional eligible task is available right now.");
+      return;
+    }
+
+    setTask(nextTask);
+    setFeedback("Fresh task ready.");
+  }
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-rose-50 via-white to-slate-50 px-6 py-20">
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-rose-50 via-white to-slate-50 px-6 py-16">
       <div className="absolute inset-0 -z-10 opacity-70">
         <div className="absolute left-10 top-10 h-56 w-56 rounded-full bg-rose-200/50 blur-3xl" />
         <div className="absolute bottom-14 right-10 h-64 w-64 rounded-full bg-violet-200/40 blur-3xl" />
       </div>
 
-      <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 rounded-3xl border border-white/70 bg-white/70 px-8 py-14 text-center shadow-xl shadow-slate-200/50 backdrop-blur-sm">
-        <p className="rounded-full border border-rose-100 bg-rose-50 px-4 py-1 text-xs font-medium uppercase tracking-[0.18em] text-rose-500">
-          Velvet Orders
-        </p>
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-          A calm start for modern order flows.
-        </h1>
-        <p className="max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-          Your fresh Next.js foundation is ready. TypeScript, Tailwind CSS, App
-          Router, and a `src`-based structure are all configured and running.
-        </p>
-        <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-5 py-3 text-sm text-slate-500 shadow-sm">
-          Home screen is live. Next step: build your ordering experience.
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-white/70 bg-white/75 px-6 py-10 shadow-xl shadow-slate-200/50 backdrop-blur-sm sm:px-8">
+        <header className="text-center">
+          <p className="mx-auto inline-flex rounded-full border border-rose-100 bg-rose-50 px-4 py-1 text-xs font-medium uppercase tracking-[0.18em] text-rose-500">
+            Velvet Orders
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            One intentional task at a time.
+          </h1>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+            Starter packs are active. Tasks are filtered by local onboarding
+            preferences and selected locally.
+          </p>
+          <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+            LocalStorage key:{" "}
+            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">
+              {onboardingStorageKey}
+            </code>
+          </p>
+          <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+            Active filters — category:{" "}
+            {activeFilters.category.length > 0
+              ? activeFilters.category.join(", ")
+              : "any"}{" "}
+            | public level:{" "}
+            {activeFilters.publicLevel.length > 0
+              ? activeFilters.publicLevel.join(", ")
+              : "any"}{" "}
+            | time:{" "}
+            {activeFilters.time.length > 0
+              ? activeFilters.time.join(", ")
+              : "any"}{" "}
+            | mode:{" "}
+            {activeFilters.mode.length > 0
+              ? activeFilters.mode.map(normalizeLabel).join(", ")
+              : "any"}
+          </p>
+        </header>
+
+        {task ? (
+          <article className="rounded-2xl border border-slate-100 bg-white px-5 py-5 shadow-sm sm:px-6">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
+                {task.category}
+              </span>
+              <span className="rounded-full bg-violet-50 px-3 py-1 font-medium text-violet-600">
+                intensity {task.intensity}/10
+              </span>
+              <span className="rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-600">
+                {task.time}
+              </span>
+              <span className="rounded-full bg-rose-50 px-3 py-1 font-medium text-rose-600">
+                {task.publicLevel}
+              </span>
+            </div>
+
+            <h2 className="mt-4 text-2xl font-semibold text-slate-900">
+              {task.title}
+            </h2>
+
+            <p className="mt-3 text-sm leading-7 text-slate-700 sm:text-base">
+              {task.text}
+            </p>
+
+            <p className="mt-4 text-xs text-slate-500">
+              Mode(s):{" "}
+              {task.modes.map((mode) => normalizeLabel(mode)).join(", ")}
+            </p>
+          </article>
+        ) : (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm text-amber-700">
+            No task available.
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onComplete}
+            disabled={!task}
+            className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Complete
+          </button>
+          <button
+            type="button"
+            onClick={onReroll}
+            disabled={!task || rerollsRemaining < 1}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Reroll
+          </button>
+          <span className="text-xs text-slate-500">
+            Rerolls left today: {rerollsRemaining}/2
+          </span>
         </div>
+
+        {feedback ? (
+          <p
+            className={`rounded-xl px-4 py-3 text-sm ${
+              isCompleted
+                ? "border border-emerald-100 bg-emerald-50 text-emerald-700"
+                : "border border-slate-100 bg-slate-50 text-slate-600"
+            }`}
+          >
+            {feedback}
+          </p>
+        ) : null}
       </section>
     </main>
   );
