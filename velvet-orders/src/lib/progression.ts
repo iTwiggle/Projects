@@ -126,34 +126,35 @@ function readProgressHistory(): StoredProgressAction[] {
       return [];
     }
 
-    return parsed
-      .map((entry) => {
-        if (!entry || typeof entry !== "object") {
-          return null;
-        }
+    const sanitized: StoredProgressAction[] = [];
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
 
-        const maybe = entry as Partial<StoredProgressAction>;
-        if (
-          maybe.type !== "complete" &&
-          maybe.type !== "reroll" &&
-          maybe.type !== "skip"
-        ) {
-          return null;
-        }
+      const maybe = entry as Partial<StoredProgressAction>;
+      if (
+        maybe.type !== "complete" &&
+        maybe.type !== "reroll" &&
+        maybe.type !== "skip"
+      ) {
+        continue;
+      }
 
-        const timestamp = Number(maybe.timestamp);
-        if (!Number.isFinite(timestamp)) {
-          return null;
-        }
+      const timestamp = Number(maybe.timestamp);
+      if (!Number.isFinite(timestamp)) {
+        continue;
+      }
 
-        return {
-          type: maybe.type,
-          taskId: maybe.taskId,
-          timestamp,
-          proofProvided: Boolean(maybe.proofProvided),
-        } satisfies StoredProgressAction;
-      })
-      .filter((entry): entry is StoredProgressAction => entry !== null);
+      sanitized.push({
+        type: maybe.type,
+        taskId: maybe.taskId,
+        timestamp,
+        proofProvided: Boolean(maybe.proofProvided),
+      });
+    }
+
+    return sanitized;
   } catch {
     return [];
   }

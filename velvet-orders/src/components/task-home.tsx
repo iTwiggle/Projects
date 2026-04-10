@@ -15,8 +15,6 @@ import {
   getProgressionStatusLine,
   recordProgressAction,
   getProgressionCompletionPhrase,
-  type ProgressionState,
-  progressionStorageKey,
 } from "@/lib/progression";
 import {
   applyCustomFlavor,
@@ -26,7 +24,12 @@ import {
   getToneStatusPhrase,
   resolveToneFromPreferences,
 } from "@/lib/tone";
-import type { OnboardingPreferences, Task, ToneProfile } from "@/types/task";
+import type {
+  OnboardingPreferences,
+  ProgressionState,
+  Task,
+  ToneProfile,
+} from "@/types/task";
 
 function normalizeLabel(value: string) {
   return value.replace(/-/g, " ");
@@ -96,11 +99,6 @@ export function TaskHome() {
     () => getProgressionStatusLine(progressionState),
     [progressionState],
   );
-
-  function pushProgressAction(action: ProgressAction) {
-    const nextState = recordProgressAction(action);
-    setProgressionState(nextState);
-  }
 
   function onComplete() {
     if (!task) return;
