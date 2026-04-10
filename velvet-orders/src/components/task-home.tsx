@@ -10,7 +10,15 @@ import {
   pickRandomTask,
   readOnboardingPreferences,
 } from "@/lib/task-picker";
-import type { OnboardingPreferences, Task } from "@/types/task";
+import {
+  applyCustomFlavor,
+  applyTone,
+  customFlavorKey,
+  getToneRewardPhrase,
+  getToneStatusPhrase,
+  resolveToneFromPreferences,
+} from "@/lib/tone";
+import type { OnboardingPreferences, Task, ToneProfile } from "@/types/task";
 
 function normalizeLabel(value: string) {
   return value.replace(/-/g, " ");
@@ -27,6 +35,7 @@ function formatPreferences(preferences: OnboardingPreferences | null) {
     publicLevel: toArray(preferences?.publicLevel),
     time: toArray(preferences?.time),
     mode: toArray(preferences?.mode).map(normalizeLabel),
+    tone: resolveToneFromPreferences(preferences),
   };
 }
 
@@ -49,11 +58,39 @@ export function TaskHome() {
     getRerollsRemaining(),
   );
   const [activeFilters] = useState(() => formatPreferences(initialPreferences));
+  const activeTone = useMemo<ToneProfile>(
+    () => activeFilters.tone ?? "affirming",
+    [activeFilters.tone],
+  );
+  const customFlavor = useMemo(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return window.localStorage.getItem(customFlavorKey);
+  }, []);
+  const tonedTaskText = useMemo(() => {
+    if (!task) {
+      return "";
+    }
+
+    const withTone = applyTone(task.text, activeTone);
+    return applyCustomFlavor(withTone, customFlavor);
+  }, [activeTone, customFlavor, task]);
+  const toneStatusPhrase = useMemo(
+    () => getToneStatusPhrase(activeTone),
+    [activeTone],
+  );
 
   function onComplete() {
     if (!task) return;
     setIsCompleted(true);
-    setFeedback(task.completionText ?? "Task completed. Nicely done.");
+    const rewardPhrase = getToneRewardPhrase(activeTone);
+    setFeedback(
+      [task.completionText ?? "Task completed. Nicely done.", rewardPhrase]
+        .filter(Boolean)
+        .join(" "),
+    );
   }
 
   function onReroll() {
@@ -118,8 +155,14 @@ export function TaskHome() {
             | time:{" "}
             {activeFilters.time.length > 0 ? activeFilters.time.join(", ") : "any"}{" "}
             | mode:{" "}
-            {activeFilters.mode.length > 0 ? activeFilters.mode.join(", ") : "any"}
+            {activeFilters.mode.length > 0 ? activeFilters.mode.join(", ") : "any"}{" "}
+            | tone: {normalizeLabel(activeTone)}
           </p>
+          {toneStatusPhrase ? (
+            <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-rose-500/90">
+              {toneStatusPhrase}
+            </p>
+          ) : null}
         </header>
 
         {task ? (
@@ -144,7 +187,7 @@ export function TaskHome() {
             </h2>
 
             <p className="mt-3 text-sm leading-7 text-slate-700 sm:text-base">
-              {task.text}
+              {tonedTaskText}
             </p>
 
             <p className="mt-4 text-xs text-slate-500">

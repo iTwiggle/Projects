@@ -61,6 +61,7 @@ export const readOnboardingPreferences =
         publicLevel: asArray(maybePrefs.publicLevel),
         time: asArray(maybePrefs.time),
         mode: asArray(maybePrefs.mode),
+        tone: maybePrefs.tone,
       };
     } catch {
       return null;

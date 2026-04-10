@@ -2,12 +2,14 @@ export type TaskPublicLevel = "private" | "subtle" | "public";
 
 export type TaskTime = "quick" | "normal" | "long";
 
-export type TaskMode =
+export type ToneProfile =
   | "playful"
   | "strict"
   | "affirming"
   | "teasing"
   | "dominant-teasing";
+
+export type TaskMode = ToneProfile;
 
 export type Task = {
   id: string;
@@ -36,4 +38,5 @@ export type OnboardingPreferences = {
   publicLevel?: TaskPublicLevel | TaskPublicLevel[];
   time?: TaskTime | TaskTime[];
   mode?: TaskMode | TaskMode[];
+  tone?: ToneProfile;
 };
