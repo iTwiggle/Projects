@@ -4,12 +4,11 @@ import { useMemo, useState } from "react";
 
 import {
   getAllBuiltInTasks,
-  pickAdaptiveTask,
+  getAdaptivePickResult,
   getRerollsRemaining,
   markRerollUsed,
   onboardingStorageKey,
   readOnboardingPreferences,
-  type AdaptiveTaskPickResult,
 } from "@/lib/task-picker";
 import {
   getProgressionState,
@@ -26,6 +25,7 @@ import {
   resolveToneFromPreferences,
 } from "@/lib/tone";
 import type {
+  AdaptivePickResult,
   OnboardingPreferences,
   ProgressionState,
   Task,
@@ -55,13 +55,13 @@ export function TaskHome() {
   const allTasks = useMemo(() => getAllBuiltInTasks(), []);
   const initialPreferences = useMemo(() => readOnboardingPreferences(), []);
   const initialPick = useMemo(
-    () => pickAdaptiveTask(allTasks, initialPreferences),
+    () => getAdaptivePickResult(allTasks, initialPreferences),
     [allTasks, initialPreferences],
   );
   const initialTask = initialPick.selectedTask;
 
   const [task, setTask] = useState<Task | null>(initialTask);
-  const [lastPickDebug, setLastPickDebug] = useState<AdaptiveTaskPickResult>(
+  const [lastPickDebug, setLastPickDebug] = useState<AdaptivePickResult>(
     initialPick,
   );
   const [isCompleted, setIsCompleted] = useState(false);
@@ -133,7 +133,7 @@ export function TaskHome() {
     if (!task) return;
 
     const preferences = readOnboardingPreferences();
-    const nextPick = pickAdaptiveTask(allTasks, preferences, task.id);
+    const nextPick = getAdaptivePickResult(allTasks, preferences, task.id);
     const nextTask = nextPick.selectedTask;
 
     if (!nextTask) {

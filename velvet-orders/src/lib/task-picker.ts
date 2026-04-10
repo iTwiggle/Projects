@@ -3,7 +3,7 @@ import {
   getRecentProgressActions,
   getRecentProgressSignals,
 } from "@/lib/progression";
-import type { OnboardingPreferences, Task } from "@/types/task";
+import type { AdaptivePickResult, OnboardingPreferences, Task } from "@/types/task";
 
 const ONBOARDING_KEY = "velvet-orders:onboarding-preferences";
 const REROLL_KEY = "velvet-orders:reroll-counter";
@@ -82,15 +82,6 @@ export type AdaptiveTaskPickResult = {
   selectedTask: Task | null;
   scoredCandidates: ScoredTaskCandidate[];
   debug: AdaptiveTaskDebug | null;
-};
-
-export type AdaptivePickResult = {
-  selectedTask: Task | null;
-  targetIntensity: number;
-  intensityAdjustment: number;
-  topPoolSize: number;
-  eligibleCount: number;
-  candidates: ScoredTaskCandidate[];
 };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
