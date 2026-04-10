@@ -78,13 +78,16 @@ export type AdaptiveTaskDebug = {
     title: string;
     category: string;
     intensity: number;
+    packId: string;
+    packName: string;
+    packSource: TaskWithPackMeta["packSource"];
     finalScore: number;
     breakdown: TaskScoreBreakdown;
   }>;
 };
 
 export type AdaptiveTaskPickResult = {
-  selectedTask: Task | null;
+  selectedTask: TaskWithPackMeta | null;
   scoredCandidates: ScoredTaskCandidate[];
   debug: AdaptiveTaskDebug | null;
 };
@@ -329,9 +332,9 @@ const matchesPreference = <T,>(selected: T[] | undefined, value: T): boolean => 
 };
 
 export const getEligibleTasks = (
-  tasks: Task[],
+  tasks: TaskWithPackMeta[],
   preferences: OnboardingPreferences | null
-): Task[] => {
+): TaskWithPackMeta[] => {
   if (!preferences) {
     return tasks;
   }
@@ -358,7 +361,7 @@ export const pickRandomTask = (
   tasks: TaskWithPackMeta[],
   preferences: OnboardingPreferences | null,
   excludeTaskId?: string
-): Task | null => {
+): TaskWithPackMeta | null => {
   return pickAdaptiveTask(tasks, preferences, excludeTaskId).selectedTask;
 };
 
