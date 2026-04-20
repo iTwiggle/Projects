@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AlbumContextPanel } from "@/app/components/AlbumContextPanel";
 import { CoverArtGeneratorPanel } from "@/app/components/CoverArtGeneratorPanel";
 import { LyricGeneratorPanel } from "@/app/components/LyricGeneratorPanel";
 import { SavedIdeasVault } from "@/app/components/SavedIdeasVault";
-import { useClientMounted } from "@/app/lib/useClientMounted";
 import { transformCoverConcept, transformLyricIdea } from "@/app/lib/transforms";
 import { loadAlbumContext, loadSavedIdeas, saveAlbumContext, saveSavedIdeas } from "@/app/lib/storage";
 import type {
@@ -17,7 +16,6 @@ import type {
   SelectedCardState,
 } from "@/app/types";
 import {
-  DEFAULT_ALBUM_CONTEXT,
   DEFAULT_COVER_SETTINGS,
   DEFAULT_GENERATOR_SETTINGS,
 } from "@/app/types";
@@ -61,30 +59,22 @@ function toSavedFromCover(concept: CoverConcept): SavedIdea {
 }
 
 export function CreativeWorkbench() {
-  const mounted = useClientMounted();
-  const [albumContext, setAlbumContext] = useState(DEFAULT_ALBUM_CONTEXT);
+  const [albumContext, setAlbumContext] = useState(loadAlbumContext);
   const [lyricSettings, setLyricSettings] = useState(DEFAULT_GENERATOR_SETTINGS);
   const [coverSettings, setCoverSettings] = useState(DEFAULT_COVER_SETTINGS);
   const [lyricIdeas, setLyricIdeas] = useState<LyricIdea[]>([]);
   const [coverConcepts, setCoverConcepts] = useState<CoverConcept[]>([]);
-  const [savedIdeas, setSavedIdeas] = useState<SavedIdea[]>([]);
+  const [savedIdeas, setSavedIdeas] = useState<SavedIdea[]>(loadSavedIdeas);
   const [selectedCard, setSelectedCard] = useState<SelectedCardState | null>(null);
   const [statusText, setStatusText] = useState("");
 
   useEffect(() => {
-    setAlbumContext(loadAlbumContext());
-    setSavedIdeas(loadSavedIdeas());
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
     saveAlbumContext(albumContext);
-  }, [albumContext, mounted]);
+  }, [albumContext]);
 
   useEffect(() => {
-    if (!mounted) return;
     saveSavedIdeas(savedIdeas);
-  }, [savedIdeas, mounted]);
+  }, [savedIdeas]);
 
   useEffect(() => {
     if (!statusText) return;
@@ -126,7 +116,7 @@ export function CreativeWorkbench() {
     setStatusText("Cover concept saved.");
   };
 
-  const saveSelectedCard = () => {
+  const saveSelectedCard = useCallback(() => {
     if (selectedLyric) {
       saveLyricIdea(selectedLyric);
       return;
@@ -136,9 +126,9 @@ export function CreativeWorkbench() {
       return;
     }
     setStatusText("No selected card.");
-  };
+  }, [selectedCover, selectedLyric]);
 
-  const recreateSelected = () => {
+  const recreateSelected = useCallback(() => {
     if (selectedLyric) {
       const output = transformLyricIdea(
         selectedLyric,
@@ -168,7 +158,15 @@ export function CreativeWorkbench() {
       setSelectedCard({ id: next.id, cardType: "cover" });
       setStatusText("Cover recreated.");
     }
-  };
+  }, [
+    albumContext,
+    coverConcepts.length,
+    coverSettings,
+    lyricIdeas,
+    lyricSettings,
+    selectedCover,
+    selectedLyric,
+  ]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -216,13 +214,8 @@ export function CreativeWorkbench() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    albumContext,
-    coverConcepts,
-    coverSettings,
-    lyricIdeas,
-    lyricSettings,
-    selectedCover,
-    selectedLyric,
+    recreateSelected,
+    saveSelectedCard,
   ]);
 
   return (

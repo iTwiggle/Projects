@@ -40,7 +40,7 @@ export function FiltersBar({
       </label>
       <label className="space-y-1">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Type</span>
-        <Select value={type} onValueChange={onTypeChange}>
+        <Select value={type} onValueChange={(value) => onTypeChange(value ?? "all")}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>

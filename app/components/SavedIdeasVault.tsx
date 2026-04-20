@@ -29,7 +29,7 @@ export function SavedIdeasVault({ ideas, onIdeasChange, onCopyText }: SavedIdeas
   const [activeTab, setActiveTab] = useState<VaultTab>("lyrics");
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
-  const [type, setType] = useState("all");
+  const [type, setType] = useState<string>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState("");
 
