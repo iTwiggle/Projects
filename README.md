@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Concept Forge
+
+**AI-Powered App Refinery & Idea Mutation Engine**
+
+Turn vague interests and fragmented ideas into refined, strategically useful software concepts.
+
+## Features (MVP v1)
+
+- **Idea Input Engine** — Multi-channel tag inputs for interests, industries, frustrations, hobbies, tech, skills, and random sparks
+- **AI Concept Generator** — Rich concept cards with full strategic intel (mock engine for local iteration; API-ready architecture)
+- **Mutation Engine** — Remix, evolve, curse, simplify, scale, B2B/creator pivots, and concept fusion
+- **Scoring System** — Weighted viability matrix with radial charts, spectrum bars, and heatmaps
+- **Concept Vault** — localStorage persistence, favorites, search, mutation lineage
+
+## Tech Stack
+
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS v4
+- shadcn/ui
+- Framer Motion
+- Lucide React
+- Recharts (reserved for future analytics)
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Architecture
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/              # Routes (forge + vault)
+├── components/
+│   ├── forge/        # Product UI
+│   ├── layout/       # Shell + background
+│   ├── scoring/      # Visualization
+│   └── ui/           # shadcn primitives
+├── hooks/            # useForge state orchestration
+├── lib/
+│   ├── concept-generator.ts  # Mock AI (swap for API)
+│   ├── mutation-engine.ts
+│   ├── scoring.ts
+│   └── storage.ts
+└── types/            # Domain models
+```
 
-## Learn More
+## Future Expansion (not in MVP)
 
-To learn more about Next.js, take a look at the following resources:
+Trend ingestion, competitor analysis, wireframe generation, pitch decks, founder personality analysis — architected for modularity but intentionally not built yet.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private — startup prototype.
