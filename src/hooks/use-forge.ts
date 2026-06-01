@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { generateConcepts, delay } from "@/lib/concept-generator";
 import {
   combineConcepts,
@@ -26,6 +26,7 @@ export function useForge() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const skipNextSaveRef = useRef(true);
 
   useEffect(() => {
     const saved = loadState();
@@ -41,6 +42,10 @@ export function useForge() {
 
   useEffect(() => {
     if (!hydrated) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
     saveState({ inputs, concepts, scoreWeights });
   }, [inputs, concepts, scoreWeights, hydrated]);
 
