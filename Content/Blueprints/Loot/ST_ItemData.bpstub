@@ -1,3 +1,10 @@
 AssetName: ST_ItemData
 AssetType: BlueprintStruct
-Status: StubOnly_NoLogic
+Status: Step3_MinimalItemFieldsDefined
+Fields:
+  - ItemID: Name
+  - DisplayName: Text
+  - Rarity: Name
+Notes:
+  - Minimal Step 3 data only.
+  - No inventory metadata, stack count, or persistence fields yet.
