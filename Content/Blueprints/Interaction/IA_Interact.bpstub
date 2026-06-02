@@ -1,0 +1,8 @@
+AssetName: IA_Interact
+AssetType: InputAction_EnhancedInput
+Status: Step2_InputActionDefined
+ValueType: Digital(Boolean)
+SuggestedMapping:
+  - MappingContext: IMC_Default
+  - Key: E
+  - TriggerEvent: Triggered

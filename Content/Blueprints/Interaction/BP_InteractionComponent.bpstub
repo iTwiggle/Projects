@@ -1,3 +1,42 @@
 AssetName: BP_InteractionComponent
 AssetType: BlueprintClass_ActorComponent
-Status: StubOnly_NoLogic
+Status: Step2_PlayerInteractionFoundation
+ClassDefaults:
+  - bCanEverTick: true
+  - TraceDistance: 450.0
+  - TraceChannel: Visibility
+Variables:
+  - IA_Interact: InputAction (ObjectReference)
+  - InteractPromptWidgetClass: WidgetBlueprintClass (default: WBP_InteractPrompt)
+  - InteractPromptWidgetRef: WBP_InteractPrompt (ObjectReference)
+  - CurrentInteractableActor: Actor (ObjectReference)
+  - CurrentPromptText: Text
+BeginPlayFlow:
+  - CreateWidget(InteractPromptWidgetClass) -> InteractPromptWidgetRef
+  - AddToViewport(InteractPromptWidgetRef)
+  - SetPromptVisible(false)
+  - Bind interact input:
+    - Use owner pawn input component (Enhanced Input)
+    - Bind IA_Interact Triggered -> HandleInteractPressed
+TickFlow_LineTrace:
+  - Get owner view location/rotation
+  - TraceStart = CameraLocation
+  - TraceEnd = TraceStart + (ForwardVector * TraceDistance)
+  - LineTraceSingleByChannel(TraceChannel)
+  - If HitActor implements BPI_Interactable:
+    - CurrentInteractableActor = HitActor
+    - CurrentPromptText = BPI_Interactable::GetInteractPrompt(HitActor)
+    - InteractPromptWidgetRef.SetPromptText(CurrentPromptText)
+    - InteractPromptWidgetRef.SetPromptVisible(true)
+  - Else:
+    - CurrentInteractableActor = None
+    - InteractPromptWidgetRef.SetPromptVisible(false)
+HandleInteractPressed:
+  - If CurrentInteractableActor is valid and implements BPI_Interactable:
+    - BPI_Interactable::Interact(CurrentInteractableActor, GetOwner())
+  - Else:
+    - Do nothing
+ScopeGuards:
+  - No loot spawn/open logic
+  - No extraction logic
+  - No stash/inventory logic
