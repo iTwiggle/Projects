@@ -158,6 +158,35 @@ Use **Data -> Load seed data** to quickly populate:
 - a sample withdrawal
 - sample notes/tags
 
+## Deploy to Vercel
+
+Bankroll Sidekick is ready to deploy as-is. No environment variables, databases, or backend services are required.
+
+### Steps
+
+1. Push this repository to GitHub (or GitLab / Bitbucket).
+2. Go to [vercel.com](https://vercel.com) and sign in (or create a free account).
+3. Click **Add New...** → **Project**.
+4. Import the repository.
+5. Vercel auto-detects Next.js — accept the defaults:
+   - **Framework Preset:** Next.js
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `.next`
+6. Click **Deploy**. The build takes about 30 seconds.
+
+That's it. Vercel gives you a URL like `https://your-project.vercel.app`. Open it on your phone — it works immediately.
+
+### Custom domain (optional)
+
+In your Vercel project → **Settings** → **Domains**, add a custom domain (e.g. `bankroll.yourdomain.com`). Vercel handles HTTPS automatically.
+
+### How it works on Vercel
+
+- The app runs as a standard Next.js deployment (server-rendered shell + client hydration).
+- All data stays in your **browser's localStorage** — nothing is sent to a server.
+- Each device/browser has its own independent data. Use **Data → Export** to move data between devices.
+- No environment variables or secrets are needed.
+
 ## Notes
 
 - Currency options are simple and local.
