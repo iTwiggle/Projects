@@ -1,5 +1,6 @@
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { calculateCompSummary } from "@/lib/analysis/comp-calculations";
+import { calculateHaggleGuide } from "@/lib/analysis/haggle-calculations";
 import {
   getConfidenceLabel,
   getResaleSourceLabel,
@@ -20,6 +21,7 @@ import type {
 } from "@/lib/types/deal";
 import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
 import type { ComparableSale } from "@/lib/types/comps";
+import type { HaggleGuide } from "@/lib/types/haggle";
 
 export const VERDICT_BADGE_STYLES: Record<VerdictType, string> = {
   approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
@@ -56,6 +58,7 @@ export interface DealViewModel {
   analysis: DealAnalysis;
   verdict: GoblinVerdict;
   display: DealViewModelDisplay;
+  haggle: HaggleGuide;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -150,6 +153,11 @@ function buildDealViewModel(
     useCompsForResale,
     compSummary
   );
+  const haggle = calculateHaggleGuide(
+    input,
+    analysis,
+    resolved.effectiveResaleValue
+  );
 
   return {
     id: meta.id,
@@ -163,6 +171,7 @@ function buildDealViewModel(
     analysis,
     verdict,
     display,
+    haggle,
   };
 }
 

@@ -15,6 +15,7 @@ import {
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
+import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,10 @@ export function DealDetailDialog({
             estimate={vm.analysis.resaleEstimate}
             warnings={vm.display.warnings}
           />
+            <HaggleModePanel
+              haggle={vm.haggle}
+              askingPrice={vm.input.askingPrice}
+            />
             <AnalysisMetrics analysis={vm.analysis} />
             <GoblinVerdict verdict={vm.verdict} />
 

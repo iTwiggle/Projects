@@ -1,48 +1,44 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Manual Comparable Sales v1)
+Last updated: 2026-06-08 (Haggle Mode v1)
 
 ## Product intent
 
-Help marketplace flippers answer: **Is this actually a good deal?** Client-only MVP — no backend, auth, AI APIs, or scraping. Users enter listing details, get deterministic analysis, and can replace rough resale estimates with **manual comps**.
+Help marketplace flippers answer: **Is this actually a good deal?** Client-only MVP. Users appraise listings, add comps, then get **negotiation guidance** — all deterministic, no backend/AI.
 
 ## Implemented features
 
-- Deal form + optional `knownResaleValue` (Quick Estimate when blank)
-- Analysis engine: profit, ROI, risk, flip score, time-to-sell
-- Goblin verdict + Goblin Brain Mode (5 lenses)
-- Screenshot Intake + browser OCR + listing parser
-- **Manual Comparable Sales v1**
-  - Panel on **Analyze** (temporary comps) and **Deal Detail** (persisted)
-  - Fields: title, platform, price, condition, notes, sold/listed toggle
-  - Stats: average, median, low/high, count, confidence
-  - 3+ comps → “Use comps as resale estimate” → **User comps** label via view model
-  - Confidence: medium (3–4), high (5+ sold), downgraded if mostly listed
-  - Manual resale overrides comps with warning
-- Saved deals + dashboard
-- **`getDealViewModel()` / `getPreviewViewModel()`** — single derived-data path
+- Deal form + Quick Estimate (`knownResaleValue` optional)
+- Analysis engine: profit, ROI, risk, flip, time-to-sell
+- Goblin verdict + Brain Mode (5 lenses)
+- Screenshot Intake + OCR + listing parser
+- Manual Comparable Sales v1 (Analyze temp / Detail persisted)
+- **Haggle Mode v1**
+  - Panel on **Analyze** (standard preview) and **Deal Detail**
+  - Buy targets: break-even, max for 25/50/100% ROI, fees/repairs buffer
+  - Negotiation: opening offer, counter range, walk-away price
+  - Asking rating: Great / Good / Tight / Overpriced
+  - Copy-paste scripts (opening, counter, walk-away)
+- **`getDealViewModel()` / `getPreviewViewModel()`** — single derived-data path (includes `haggle`)
 
 ## Architecture summary
 
 ```
-SavedDeal (localStorage)
-  → getDealViewModel() → DealCard, DealDetail, dashboard
-
-Analyze preview (unsaved)
-  → getPreviewViewModel(input, comps, useCompsForResale) → same pipeline
+SavedDeal → getDealViewModel() → UI (card, detail, haggle, dashboard)
+Analyze   → getPreviewViewModel() → same pipeline (haggle hidden in Brain Mode)
 ```
 
-Resale priority: **manual** → **comps** (if enabled, 3+ valid) → **estimated**.
+Resale priority: **manual** → **comps** (3+ enabled) → **estimated**.
 
-UI reads derived data only through view models. Cached `analysis`/`verdict` still written to localStorage for schema compat.
+Haggle uses `resolved.effectiveResaleValue` + `analysis.roiPercent` from the view model — never cached blobs.
 
 ## Data model summary
 
-**`SavedDeal`** = `DealInput` + `id`, timestamps, `comps[]`, `useCompsForResale`, `analysis`, `verdict`.
+**`SavedDeal`** = inputs + `comps`, `useCompsForResale`, cached `analysis`/`verdict` (write-only for schema).
 
-**`ComparableSale`** = `id`, `title`, `platform`, `price`, `condition`, `notes`, `listingType` (`sold`|`listed`).
+**`DealViewModel`** = `input`, `comps`, `compSummary`, `resolved`, `analysis`, `verdict`, `display`, **`haggle`**.
 
-**`DealViewModel`** = `input`, `comps`, `compSummary`, `resolved`, `analysis`, `verdict`, `display` (labels, badges, warnings).
+**`HaggleGuide`** = price targets, rating, scripts (runtime only, not persisted).
 
 ## localStorage schema
 
@@ -50,41 +46,38 @@ UI reads derived data only through view models. Cached `analysis`/`verdict` stil
 |-----|-------|
 | `marketplace-goblin-deals` | `SavedDeal[]` JSON |
 
-Legacy `estimatedResaleValue` → `knownResaleValue` on load. Comps default to `[]`; `useCompsForResale` defaults `false`.
+Unchanged — haggle is computed on read, not stored.
 
-## Analysis pipeline
+## Analysis + haggle pipeline
 
-1. `normalizeDealInput`
-2. `{ comps, useCompsForResale }`
-3. `resolveDeal` → resale estimate (manual / comps / estimated)
-4. `analyzeDeal` → metrics
-5. `getGoblinVerdict` → verdict
-6. `calculateCompSummary` + `display.warnings`
+1. View model builds `analysis` from inputs/comps
+2. `calculateHaggleGuide(input, analysis, effectiveResaleValue)`
+3. Net resale = resale − fees/repairs buffer (category + condition)
+4. Max buy@ROI = net / (1 + ROI/100)
+5. Rate ask vs 100/50/25% ceilings → Great/Good/Tight/Overpriced
 
 ## Known risks / technical debt
 
-- View model recomputed per card render (memoize if lists grow).
-- Weak comp field validation on load (`platform`, `listingType`).
-- Brain Mode bypasses view-model warnings.
-- README partially outdated.
+- Haggle hidden during Brain Mode on Analyze (uses alternate analysis).
+- Fees/buffer rates are heuristic, not user-editable.
+- View model recomputed per render — memoize at scale.
 
 ## Recent changes
 
-- Comparable Sales panel + comp calculations + persistence
-- `getDealViewModel` / `getPreviewViewModel` with comp integration
-- Manual-resale-overrides-comps warning in `display.warnings`
-- `DealEstimateWarnings` component wired to Analyze + Detail
+- `haggle-calculations.ts` + tests
+- `HaggleModePanel` with copy buttons
+- `DealViewModel.haggle` wired through preview + detail
 
 ## Verification
 
 ```bash
-npm run test    # comp + view-model tests
+npm run test    # 33 passed
 npm run build
 npm run lint
 ```
 
-Manual: add 3 comps on Analyze → enable comps estimate → save → reopen Detail → comps persist; set manual resale with comps enabled → see override warning.
+Manual: analyze a listing → Haggle Mode shows rating + targets; copy opening script; change asking price → rating updates; Detail matches Analyze after save.
 
 ## Recommended next step
 
-Surface comp count badge on **DealCard** when comps exist, or add schema version for future engine migrations.
+Let users tweak fees/buffer % in Haggle Mode, or show haggle summary on **DealCard**.

@@ -19,6 +19,7 @@ import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { GoblinBrainMode } from "@/components/deal/goblin-brain-mode";
+import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { ScreenshotIntake } from "@/components/deal/screenshot-intake";
 import { PrefillConfirmDialog } from "@/components/deal/prefill-confirm-dialog";
@@ -114,6 +115,7 @@ export function DealAnalyzer({
   const displayVerdict =
     brainResult?.verdict ?? previewViewModel?.verdict ?? null;
   const estimateWarnings = brainResult ? [] : previewViewModel?.display.warnings ?? [];
+  const haggleGuide = brainResult ? null : previewViewModel?.haggle ?? null;
 
   return (
     <div className="space-y-6">
@@ -176,6 +178,13 @@ export function DealAnalyzer({
             onModeChange={(mode) => setBrainMode(mode)}
             result={brainResult}
           />
+
+          {haggleGuide && preview && (
+            <HaggleModePanel
+              haggle={haggleGuide}
+              askingPrice={preview.input.askingPrice}
+            />
+          )}
 
           <AnalysisMetrics analysis={displayAnalysis} />
           <GoblinVerdict verdict={displayVerdict} />

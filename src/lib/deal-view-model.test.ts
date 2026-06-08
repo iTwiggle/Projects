@@ -130,6 +130,18 @@ describe("getDealViewModel", () => {
     );
   });
 
+  it("includes haggle guidance derived from analysis", () => {
+    const vm = getDealViewModel(makeSavedDeal({ askingPrice: 100 }));
+
+    expect(vm.haggle.effectiveResaleValue).toBe(
+      vm.resolved.effectiveResaleValue
+    );
+    expect(vm.haggle.scripts.openingOffer).toContain("Test Item");
+    expect(["great", "good", "tight", "overpriced"]).toContain(
+      vm.haggle.askingPriceRating
+    );
+  });
+
   it("getPreviewViewModel matches saved deal view for same inputs", () => {
     const input = {
       itemName: "Preview Item",
