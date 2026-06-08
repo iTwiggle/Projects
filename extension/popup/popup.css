@@ -1,0 +1,155 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 360px;
+  max-height: 520px;
+  overflow-y: auto;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 13px;
+  color: #e5e7eb;
+  background: #0f172a;
+}
+
+.header {
+  padding: 14px 14px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #6ee7b7;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.status {
+  margin: 12px 14px 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.meta {
+  margin: 8px 14px 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.btn {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 12px 14px 0;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  color: #042f2e;
+  background: #34d399;
+}
+
+.btn-primary:not(:disabled):hover {
+  background: #6ee7b7;
+}
+
+.btn-secondary {
+  color: #e2e8f0;
+  background: #334155;
+}
+
+.btn-secondary:not(:disabled):hover {
+  background: #475569;
+}
+
+.preview {
+  margin: 12px 14px 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.preview h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.preview-item {
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.preview-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.preview-meta {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.badge-sold {
+  color: #6ee7b7;
+}
+
+.badge-listed {
+  color: #fbbf24;
+}
+
+.toast {
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: rgba(52, 211, 153, 0.15);
+  color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.footer {
+  margin: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  font-size: 10px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.hidden {
+  display: none;
+}

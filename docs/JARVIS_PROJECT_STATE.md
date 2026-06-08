@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Extension Spec draft)
+Last updated: 2026-06-08 (eBay extension prototype v0.1)
 
 ## Product intent
 
@@ -63,6 +63,7 @@ Saved deals schema unchanged.
 | `analyze-draft.ts` | Persists OCR/listing text for analyze session |
 | `types/comp-capture.ts` | `CapturedComp`, `CompCaptureBatch`, `CompImportReport` |
 | `comp-capture-import.ts` | Normalize captured comps → `ComparableSale[]` |
+| `extension/` | MV3 eBay comp capture → clipboard JSON (prototype) |
 
 ## Known risks / technical debt
 
@@ -96,8 +97,10 @@ Planned hybrid path: identity-aware search links (shipped) → browser extension
 
 **Phase 1 shipped:** `CompCaptureBatch` types, `normalizeCapturedComps()`, JSON paste/file import in Comparable Sales panel, identity/search-query mismatch warnings, plain-text paste preserved.
 
-**Extension spec (draft):** [`docs/MARKETPLACE_GOBLIN_EXTENSION_SPEC.md`](./MARKETPLACE_GOBLIN_EXTENSION_SPEC.md) — user-initiated capture, per-site strategy, MVP build order (eBay first).
+**Extension spec:** [`docs/MARKETPLACE_GOBLIN_EXTENSION_SPEC.md`](./MARKETPLACE_GOBLIN_EXTENSION_SPEC.md)
+
+**Extension prototype (v0.1):** `extension/` — MV3 eBay search capture → `CompCaptureBatch` JSON → clipboard → Goblin JSON import. See `extension/README.md`.
 
 ## Recommended next step
 
-Implement extension scaffold + eBay sold search capture per extension spec Step 1–2.
+Manual QA: load unpacked extension, capture eBay sold search, paste JSON into Goblin. Then Craigslist parser or postMessage bridge.

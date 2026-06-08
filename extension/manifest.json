@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Marketplace Goblin Comp Capture",
+  "version": "0.1.0",
+  "description": "Capture visible eBay sold/active listings for Marketplace Goblin comp import.",
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
+  "host_permissions": [
+    "https://www.ebay.com/*",
+    "https://ebay.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Marketplace Goblin — Capture eBay comps"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
