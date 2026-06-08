@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { PrefillableField } from "@/lib/intake/listing-parser";
 import {
   DEAL_CATEGORIES,
   DEAL_CONDITIONS,
@@ -28,6 +29,9 @@ import {
 } from "@/lib/types/deal";
 
 interface DealFormProps {
+  value?: DealInput;
+  onChange?: (input: DealInput) => void;
+  onFieldTouched?: (field: PrefillableField) => void;
   initialValues?: DealInput;
   submitLabel?: string;
   onSubmit: (input: DealInput) => void;
@@ -35,20 +39,41 @@ interface DealFormProps {
 }
 
 export function DealForm({
+  value,
+  onChange,
+  onFieldTouched,
   initialValues,
   submitLabel = "Analyze Deal",
   onSubmit,
   onCancel,
 }: DealFormProps) {
-  const [form, setForm] = useState<DealInput>(
-    () => initialValues ?? EMPTY_DEAL_INPUT
+  const isControlled = value !== undefined && onChange !== undefined;
+  const [internalForm, setInternalForm] = useState<DealInput>(
+    () => value ?? initialValues ?? EMPTY_DEAL_INPUT
   );
+
+  const form = isControlled ? value : internalForm;
+
+  function setForm(next: DealInput) {
+    if (isControlled) onChange(next);
+    else setInternalForm(next);
+  }
 
   function updateField<K extends keyof DealInput>(
     key: K,
-    value: DealInput[K]
+    fieldValue: DealInput[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm({ ...form, [key]: fieldValue });
+    if (
+      onFieldTouched &&
+      (key === "itemName" ||
+        key === "askingPrice" ||
+        key === "condition" ||
+        key === "category" ||
+        key === "notes")
+    ) {
+      onFieldTouched(key);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -87,8 +112,8 @@ export function DealForm({
               <Label htmlFor="category">Category</Label>
               <Select
                 value={form.category}
-                onValueChange={(value) =>
-                  updateField("category", value as DealInput["category"])
+                onValueChange={(fieldValue) =>
+                  updateField("category", fieldValue as DealInput["category"])
                 }
               >
                 <SelectTrigger id="category" className="w-full">
@@ -108,8 +133,8 @@ export function DealForm({
               <Label htmlFor="condition">Estimated Condition</Label>
               <Select
                 value={form.condition}
-                onValueChange={(value) =>
-                  updateField("condition", value as DealInput["condition"])
+                onValueChange={(fieldValue) =>
+                  updateField("condition", fieldValue as DealInput["condition"])
                 }
               >
                 <SelectTrigger id="condition" className="w-full">
