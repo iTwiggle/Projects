@@ -72,7 +72,10 @@ export function DealDetailDialog({
               }
             />
 
-            <ResaleEstimatePanel estimate={vm.analysis.resaleEstimate} />
+            <ResaleEstimatePanel
+            estimate={vm.analysis.resaleEstimate}
+            warnings={vm.display.warnings}
+          />
             <AnalysisMetrics analysis={vm.analysis} />
             <GoblinVerdict verdict={vm.verdict} />
 

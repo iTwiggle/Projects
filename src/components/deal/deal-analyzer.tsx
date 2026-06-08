@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { BookmarkPlus, RotateCcw } from "lucide-react";
-import { analyzeDeal } from "@/lib/analysis/engine";
 import { analyzeWithBrainMode } from "@/lib/analysis/brain-modes";
-import { getGoblinVerdict } from "@/lib/analysis/verdict";
+import { getPreviewViewModel } from "@/lib/deal-view-model";
 import type { PrefillableField } from "@/lib/intake/listing-parser";
 import type { SaveDealOptions } from "@/lib/storage/deals";
 import { Button } from "@/components/ui/button";
@@ -100,21 +99,21 @@ export function DealAnalyzer({
     }
   }
 
-  const standardAnalysis = preview
-    ? analyzeDeal(preview.input, analysisOptions)
-    : null;
-  const standardVerdict =
-    preview && standardAnalysis
-      ? getGoblinVerdict(preview.input, standardAnalysis)
-      : null;
+  const previewViewModel = useMemo(() => {
+    if (!preview) return null;
+    return getPreviewViewModel(preview.input, comps, useCompsForResale);
+  }, [preview, comps, useCompsForResale]);
 
   const brainResult = useMemo(() => {
     if (!preview || !brainMode) return null;
     return analyzeWithBrainMode(preview.input, brainMode, analysisOptions);
   }, [preview, brainMode, analysisOptions]);
 
-  const displayAnalysis = brainResult?.analysis ?? standardAnalysis;
-  const displayVerdict = brainResult?.verdict ?? standardVerdict;
+  const displayAnalysis =
+    brainResult?.analysis ?? previewViewModel?.analysis ?? null;
+  const displayVerdict =
+    brainResult?.verdict ?? previewViewModel?.verdict ?? null;
+  const estimateWarnings = brainResult ? [] : previewViewModel?.display.warnings ?? [];
 
   return (
     <div className="space-y-6">
@@ -167,7 +166,10 @@ export function DealAnalyzer({
             onUseCompsChange={setUseCompsForResale}
           />
 
-          <ResaleEstimatePanel estimate={displayAnalysis.resaleEstimate} />
+          <ResaleEstimatePanel
+            estimate={displayAnalysis.resaleEstimate}
+            warnings={estimateWarnings}
+          />
 
           <GoblinBrainMode
             activeMode={brainMode}

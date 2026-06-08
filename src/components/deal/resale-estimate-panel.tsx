@@ -1,4 +1,5 @@
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { DealEstimateWarnings } from "@/components/deal/deal-estimate-warnings";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 interface ResaleEstimatePanelProps {
   estimate: ResaleEstimate;
+  warnings?: string[];
 }
 
 const confidenceStyles = {
@@ -19,10 +21,13 @@ const confidenceStyles = {
   high: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
 };
 
-export function ResaleEstimatePanel({ estimate }: ResaleEstimatePanelProps) {
+export function ResaleEstimatePanel({
+  estimate,
+  warnings,
+}: ResaleEstimatePanelProps) {
   const isEstimated = estimate.source === "estimated";
-  const isComps = estimate.source === "comps";
   const showRange = estimate.low !== estimate.high;
+  const displayWarnings = warnings ?? [];
 
   return (
     <Card className="border-border/50 bg-card/60">
@@ -84,22 +89,14 @@ export function ResaleEstimatePanel({ estimate }: ResaleEstimatePanelProps) {
           </div>
         )}
 
-        {isEstimated && (
-          <div className="flex gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-            <AlertTriangle
-              className="mt-0.5 size-4 shrink-0 text-amber-400"
-              aria-hidden
+        {displayWarnings.length > 0 ? (
+          <DealEstimateWarnings warnings={displayWarnings} />
+        ) : (
+          isEstimated && (
+            <DealEstimateWarnings
+              warnings={["Fast triage only. Verify comps before buying."]}
             />
-            <p className="text-xs text-muted-foreground">
-              Fast triage only. Verify comps before buying.
-            </p>
-          </div>
-        )}
-
-        {isComps && (
-          <p className="text-xs text-muted-foreground">
-            Resale estimate uses the median of your comparable sales.
-          </p>
+          )
         )}
       </CardContent>
     </Card>

@@ -18,7 +18,8 @@ import type {
   SavedDeal,
   VerdictType,
 } from "@/lib/types/deal";
-import { normalizeDealInput } from "@/lib/types/deal";
+import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
+import type { ComparableSale } from "@/lib/types/comps";
 
 export const VERDICT_BADGE_STYLES: Record<VerdictType, string> = {
   approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
@@ -72,6 +73,7 @@ function buildResaleDisplay(estimate: ResaleEstimate): {
 }
 
 function buildWarnings(
+  input: DealInput,
   analysis: DealAnalysis,
   useCompsForResale: boolean,
   compSummary: CompSummary | null
@@ -79,10 +81,14 @@ function buildWarnings(
   const warnings: string[] = [];
   const { resaleEstimate } = analysis;
 
-  if (resaleEstimate.source === "estimated") {
+  if (hasManualResaleValue(input) && useCompsForResale) {
     warnings.push(
-      "Fast triage only. Verify comps before buying."
+      "Manual resale value overrides comps — comps are saved but not used for the estimate."
     );
+  }
+
+  if (resaleEstimate.source === "estimated") {
+    warnings.push("Fast triage only. Verify comps before buying.");
   }
 
   if (resaleEstimate.source === "comps") {
@@ -92,7 +98,7 @@ function buildWarnings(
   }
 
   if (
-    useCompsForResale &&
+    resaleEstimate.source === "comps" &&
     compSummary &&
     compSummary.listedCount > compSummary.soldCount
   ) {
@@ -105,6 +111,7 @@ function buildWarnings(
 }
 
 function buildDisplay(
+  input: DealInput,
   analysis: DealAnalysis,
   verdict: GoblinVerdict,
   useCompsForResale: boolean,
@@ -121,27 +128,33 @@ function buildDisplay(
     resaleDisplay,
     showResaleRange,
     profitPositive: analysis.potentialProfit >= 0,
-    warnings: buildWarnings(analysis, useCompsForResale, compSummary),
+    warnings: buildWarnings(input, analysis, useCompsForResale, compSummary),
   };
 }
 
-/** Single source of truth for derived deal data shown in the UI. */
-export function getDealViewModel(deal: SavedDeal): DealViewModel {
-  const input = normalizeDealInput(deal);
-  const comps = deal.comps ?? [];
-  const useCompsForResale = deal.useCompsForResale === true;
+function buildDealViewModel(
+  input: DealInput,
+  comps: ComparableSale[],
+  useCompsForResale: boolean,
+  meta: { id: string; createdAt: string; updatedAt: string }
+): DealViewModel {
   const analysisOptions = { comps, useCompsForResale };
-
   const resolved = resolveDeal(input, analysisOptions);
   const analysis = analyzeDeal(input, analysisOptions);
   const verdict = getGoblinVerdict(input, analysis);
   const compSummary = calculateCompSummary(comps);
-  const display = buildDisplay(analysis, verdict, useCompsForResale, compSummary);
+  const display = buildDisplay(
+    input,
+    analysis,
+    verdict,
+    useCompsForResale,
+    compSummary
+  );
 
   return {
-    id: deal.id,
-    createdAt: deal.createdAt,
-    updatedAt: deal.updatedAt,
+    id: meta.id,
+    createdAt: meta.createdAt,
+    updatedAt: meta.updatedAt,
     input,
     comps,
     useCompsForResale,
@@ -151,6 +164,35 @@ export function getDealViewModel(deal: SavedDeal): DealViewModel {
     verdict,
     display,
   };
+}
+
+/** Single source of truth for derived saved-deal data shown in the UI. */
+export function getDealViewModel(deal: SavedDeal): DealViewModel {
+  const input = normalizeDealInput(deal);
+  return buildDealViewModel(
+    input,
+    deal.comps ?? [],
+    deal.useCompsForResale === true,
+    {
+      id: deal.id,
+      createdAt: deal.createdAt,
+      updatedAt: deal.updatedAt,
+    }
+  );
+}
+
+/** View model for unsaved Analyze preview (temporary comps until save). */
+export function getPreviewViewModel(
+  input: DealInput,
+  comps: ComparableSale[],
+  useCompsForResale: boolean
+): DealViewModel {
+  const normalized = normalizeDealInput(input);
+  return buildDealViewModel(normalized, comps, useCompsForResale, {
+    id: "preview",
+    createdAt: "",
+    updatedAt: "",
+  });
 }
 
 export function getDealViewModels(deals: SavedDeal[]): DealViewModel[] {

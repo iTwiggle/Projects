@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDealViewModel } from "@/lib/deal-view-model";
+import { getDealViewModel, getPreviewViewModel } from "@/lib/deal-view-model";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { SavedDeal } from "@/lib/types/deal";
 
@@ -102,7 +102,7 @@ describe("getDealViewModel", () => {
     expect(vm.compSummary?.count).toBe(3);
   });
 
-  it("prefers manual resale over comps", () => {
+  it("prefers manual resale over comps and warns", () => {
     const deal = makeSavedDeal({
       knownResaleValue: 200,
       comps: [makeComp(40), makeComp(50), makeComp(60)],
@@ -113,6 +113,10 @@ describe("getDealViewModel", () => {
 
     expect(vm.analysis.resaleEstimate.source).toBe("manual");
     expect(vm.analysis.resaleEstimate.midpoint).toBe(200);
+    expect(vm.display.resaleSourceLabel).toBe("Manual resale value");
+    expect(
+      vm.display.warnings.some((w) => w.includes("Manual resale value overrides"))
+    ).toBe(true);
   });
 
   it("provides display labels and warnings for rough estimates", () => {
@@ -124,6 +128,32 @@ describe("getDealViewModel", () => {
     expect(vm.display.warnings.some((w) => w.includes("Fast triage"))).toBe(
       true
     );
+  });
+
+  it("getPreviewViewModel matches saved deal view for same inputs", () => {
+    const input = {
+      itemName: "Preview Item",
+      category: "Electronics" as const,
+      askingPrice: 80,
+      condition: "Good" as const,
+      knownResaleValue: null,
+      notes: "",
+    };
+    const comps = [makeComp(100), makeComp(120), makeComp(140)];
+
+    const preview = getPreviewViewModel(input, comps, true);
+    const saved = getDealViewModel(
+      makeSavedDeal({
+        ...input,
+        comps,
+        useCompsForResale: true,
+      })
+    );
+
+    expect(preview.analysis.resaleEstimate).toEqual(
+      saved.analysis.resaleEstimate
+    );
+    expect(preview.display.resaleSourceLabel).toBe("User comps");
   });
 
   it("warns when mostly listed comps drive the estimate", () => {

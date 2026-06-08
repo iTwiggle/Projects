@@ -1,83 +1,90 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (deal view-model refactor)
+Last updated: 2026-06-08 (Manual Comparable Sales v1)
 
 ## Product intent
 
-Help marketplace flippers answer: **Is this actually a good deal?** Client-only MVP — no backend, auth, AI APIs, or scraping. Users enter listing details, get deterministic profit/ROI/risk analysis, goblin verdict, and optional comps-based resale estimates. Data lives in `localStorage`.
+Help marketplace flippers answer: **Is this actually a good deal?** Client-only MVP — no backend, auth, AI APIs, or scraping. Users enter listing details, get deterministic analysis, and can replace rough resale estimates with **manual comps**.
 
 ## Implemented features
 
-- Deal input form + Quick Estimate (`knownResaleValue` optional)
-- Deterministic analysis engine (profit, ROI, risk, flip score, time-to-sell)
-- Goblin verdict (approved / caution / reject)
-- Goblin Brain Mode (5 re-analysis lenses)
+- Deal form + optional `knownResaleValue` (Quick Estimate when blank)
+- Analysis engine: profit, ROI, risk, flip score, time-to-sell
+- Goblin verdict + Goblin Brain Mode (5 lenses)
 - Screenshot Intake + browser OCR + listing parser
-- Manual Comparable Sales (add comps, use as resale estimate)
-- Saved deals + treasure dashboard
-- **`getDealViewModel()`** — single UI source of truth for derived deal data
+- **Manual Comparable Sales v1**
+  - Panel on **Analyze** (temporary comps) and **Deal Detail** (persisted)
+  - Fields: title, platform, price, condition, notes, sold/listed toggle
+  - Stats: average, median, low/high, count, confidence
+  - 3+ comps → “Use comps as resale estimate” → **User comps** label via view model
+  - Confidence: medium (3–4), high (5+ sold), downgraded if mostly listed
+  - Manual resale overrides comps with warning
+- Saved deals + dashboard
+- **`getDealViewModel()` / `getPreviewViewModel()`** — single derived-data path
 
 ## Architecture summary
 
 ```
-SavedDeal (localStorage) → getDealViewModel() → UI components
-                              ↓
-                    normalizeDealInput + comps flags
-                    resolveDeal → analyzeDeal → getGoblinVerdict
-                    comp summary + display labels/warnings
+SavedDeal (localStorage)
+  → getDealViewModel() → DealCard, DealDetail, dashboard
+
+Analyze preview (unsaved)
+  → getPreviewViewModel(input, comps, useCompsForResale) → same pipeline
 ```
 
-- **Persisted:** user inputs, comps, flags, metadata, plus cached `analysis`/`verdict` (written on save/load refresh; **not read by UI**).
-- **Derived (runtime):** everything from `getDealViewModel()`.
-- **Analyze preview:** still uses `analyzeDeal()` directly (not saved yet).
+Resale priority: **manual** → **comps** (if enabled, 3+ valid) → **estimated**.
+
+UI reads derived data only through view models. Cached `analysis`/`verdict` still written to localStorage for schema compat.
 
 ## Data model summary
 
-**`SavedDeal`** = `DealInput` + `id`, `createdAt`, `updatedAt`, `comps[]`, `useCompsForResale`, `analysis`, `verdict`.
+**`SavedDeal`** = `DealInput` + `id`, timestamps, `comps[]`, `useCompsForResale`, `analysis`, `verdict`.
 
-**`DealViewModel`** = normalized `input`, `resolved`, `analysis`, `verdict`, `compSummary`, `display` (labels, badges, warnings).
+**`ComparableSale`** = `id`, `title`, `platform`, `price`, `condition`, `notes`, `listingType` (`sold`|`listed`).
+
+**`DealViewModel`** = `input`, `comps`, `compSummary`, `resolved`, `analysis`, `verdict`, `display` (labels, badges, warnings).
 
 ## localStorage schema
 
 | Key | Value |
 |-----|-------|
-| `marketplace-goblin-deals` | `JSON.stringify(SavedDeal[])` |
+| `marketplace-goblin-deals` | `SavedDeal[]` JSON |
 
-Legacy field `estimatedResaleValue` migrated to `knownResaleValue` on load. No schema version field. Cached `analysis`/`verdict` retained for backward compatibility.
+Legacy `estimatedResaleValue` → `knownResaleValue` on load. Comps default to `[]`; `useCompsForResale` defaults `false`.
 
 ## Analysis pipeline
 
-1. `normalizeDealInput(deal)`
-2. Options: `{ comps, useCompsForResale }`
-3. Resale priority: **manual** → **comps** (if enabled, 3+ valid) → **estimated**
-4. `analyzeDeal` → metrics + embedded `resaleEstimate`
-5. `getGoblinVerdict` → verdict + reasoning
+1. `normalizeDealInput`
+2. `{ comps, useCompsForResale }`
+3. `resolveDeal` → resale estimate (manual / comps / estimated)
+4. `analyzeDeal` → metrics
+5. `getGoblinVerdict` → verdict
+6. `calculateCompSummary` + `display.warnings`
 
 ## Known risks / technical debt
 
-- `getDealViewModel` runs per card render — fine at MVP scale; memoize if lists grow large.
-- `ComparableSale.platform` typed as `string`; weak comp validation on load.
-- Edit form can receive full `SavedDeal` as `initialValues` (extra keys in form state).
-- README still partially outdated vs Quick Estimate / comps.
-- Analyze flow does not use view model (intentional — unsaved session).
+- View model recomputed per card render (memoize if lists grow).
+- Weak comp field validation on load (`platform`, `listingType`).
+- Brain Mode bypasses view-model warnings.
+- README partially outdated.
 
 ## Recent changes
 
-- Added `src/lib/deal-view-model.ts` + tests.
-- `DealCard`, `DealDetailDialog`, `calculateDashboardStats`, `StatsCards` now use view model.
-- Migration always recomputes `analysis`/`verdict` on load (still persists them).
-- `DashboardStats.bestDeal` slimmed to `{ itemName, potentialProfit }`.
+- Comparable Sales panel + comp calculations + persistence
+- `getDealViewModel` / `getPreviewViewModel` with comp integration
+- Manual-resale-overrides-comps warning in `display.warnings`
+- `DealEstimateWarnings` component wired to Analyze + Detail
 
 ## Verification
 
 ```bash
-npm run test    # 25 passed
-npm run build   # OK
-npm run lint    # OK
+npm run test    # comp + view-model tests
+npm run build
+npm run lint
 ```
 
-Manual: save a deal → card and detail show matching profit/verdict; edit comps in detail → card updates after close; dashboard totals match sum of card profits.
+Manual: add 3 comps on Analyze → enable comps estimate → save → reopen Detail → comps persist; set manual resale with comps enabled → see override warning.
 
 ## Recommended next step
 
-**Memoize or batch view models** in `DealList` / dashboard if performance becomes an issue, or add a lightweight schema version + one-shot migration helper for future engine changes.
+Surface comp count badge on **DealCard** when comps exist, or add schema version for future engine migrations.
