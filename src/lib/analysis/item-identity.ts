@@ -1,18 +1,18 @@
+import { cleanupOcrText } from "@/lib/intake/ocr-text-cleanup";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { DealCategory, DealInput } from "@/lib/types/deal";
 import type {
   IdentityConfidence,
+  IdentityEvidenceSource,
   ItemIdentity,
+  ItemIdentitySources,
 } from "@/lib/types/item-identity";
-import { EMPTY_ITEM_IDENTITY } from "@/lib/types/item-identity";
+import {
+  EMPTY_ITEM_IDENTITY,
+  IDENTITY_CONFLICT_WARNING,
+} from "@/lib/types/item-identity";
 
-export interface ItemIdentitySources {
-  /** Raw listing / OCR text not yet in notes. */
-  listingText?: string;
-  ocrText?: string;
-  /** Decoded hints from listing URL path or query. */
-  urlText?: string;
-}
+export type { ItemIdentitySources };
 
 interface BrandRule {
   canonical: string;
@@ -26,6 +26,42 @@ interface FamilyRule {
   categories: DealCategory[];
   brandHint?: string;
 }
+
+type SourceDetection = {
+  source: IdentityEvidenceSource;
+  brand: string | null;
+  model: string | null;
+  productFamily: string | null;
+  variant: string | null;
+  weight: number;
+};
+
+const SOURCE_WEIGHT: Record<IdentityEvidenceSource, number> = {
+  itemName: 4,
+  notes: 3,
+  ocr: 3,
+  listingText: 3,
+  comparableSales: 2,
+  url: 1,
+};
+
+const SOURCE_LABELS: Record<IdentityEvidenceSource, string> = {
+  ocr: "OCR",
+  listingText: "Listing Text",
+  itemName: "Item Name",
+  notes: "Notes",
+  comparableSales: "Comparable Sales",
+  url: "URL",
+};
+
+const BUCKET_TO_EVIDENCE: Record<string, IdentityEvidenceSource> = {
+  itemName: "itemName",
+  notes: "notes",
+  listingText: "listingText",
+  ocr: "ocr",
+  comps: "comparableSales",
+  urlText: "url",
+};
 
 const BRAND_RULES: BrandRule[] = [
   { canonical: "Apple", patterns: [/\bapple\b/i, /\biphone\b/i, /\bipad\b/i, /\bmacbook\b/i, /\bairpods\b/i], categories: ["Electronics"] },
@@ -110,7 +146,7 @@ const MODEL_PATTERNS: { pattern: RegExp; categories: DealCategory[] }[] = [
   { pattern: /\b(?:honda|toyota|ford|chevy|chevrolet)\s+[a-z0-9-]+\s+(?:19|20)\d{2}\b/i, categories: ["Vehicles & Parts"] },
   { pattern: /\b(?:19|20)\d{2}\s+(?:honda|toyota|ford|chevy|chevrolet|nissan)\s+[a-z0-9-]+/i, categories: ["Vehicles & Parts"] },
   { pattern: /\bmodel\s*#?\s*[a-z]{0,3}\d{3,}[a-z0-9-]*/i, categories: ["Tools & Hardware", "Appliances", "Electronics"] },
-  { pattern: /\b[A-Z]{1,3}\d{3,}[A-Z0-9-]{2,}\b/, categories: ["Appliances", "Electronics", "Tools & Hardware"] },
+  { pattern: /\b[a-z]{1,3}\d{3,}[a-z0-9-]{2,}\b/i, categories: ["Appliances", "Electronics", "Tools & Hardware"] },
   { pattern: /\b(wtw|wtg|wfw|whd)\d{4,}\w*/i, categories: ["Appliances"] },
 ];
 
@@ -137,6 +173,12 @@ export function isIdentitySupportedCategory(category: DealCategory): boolean {
   return SUPPORTED_CATEGORIES.includes(category);
 }
 
+export function identityEvidenceSourceLabel(
+  source: IdentityEvidenceSource
+): string {
+  return SOURCE_LABELS[source];
+}
+
 export function extractUrlIdentityHints(listingUrl: string | null): string {
   if (!listingUrl) return "";
 
@@ -158,6 +200,24 @@ export function buildIdentityHaystack(
   comps?: ComparableSale[],
   extra?: ItemIdentitySources
 ): { haystack: string; sources: string[] } {
+  const buckets = buildIdentityBuckets(input, comps, extra);
+  const sources = buckets
+    .filter((bucket) => bucket.text.trim().length > 0)
+    .map((bucket) => bucket.key);
+
+  const haystack = buckets
+    .map((bucket) => bucket.text)
+    .join(" ")
+    .toLowerCase();
+
+  return { haystack, sources: [...new Set(sources)] };
+}
+
+function buildIdentityBuckets(
+  input: DealInput,
+  comps?: ComparableSale[],
+  extra?: ItemIdentitySources
+): { key: string; text: string }[] {
   const buckets: { key: string; text: string }[] = [
     { key: "itemName", text: input.itemName },
     { key: "notes", text: input.notes },
@@ -167,7 +227,10 @@ export function buildIdentityHaystack(
     buckets.push({ key: "listingText", text: extra.listingText });
   }
   if (extra?.ocrText?.trim()) {
-    buckets.push({ key: "ocrText", text: extra.ocrText });
+    const cleaned = cleanupOcrText(extra.ocrText).cleaned;
+    if (cleaned.trim()) {
+      buckets.push({ key: "ocr", text: cleaned });
+    }
   }
 
   const urlHints = extra?.urlText ?? extractUrlIdentityHints(input.listingUrl);
@@ -179,16 +242,7 @@ export function buildIdentityHaystack(
     buckets.push({ key: "comps", text: `${comp.title} ${comp.notes}` });
   }
 
-  const sources = buckets
-    .filter((bucket) => bucket.text.trim().length > 0)
-    .map((bucket) => bucket.key);
-
-  const haystack = buckets
-    .map((bucket) => bucket.text)
-    .join(" ")
-    .toLowerCase();
-
-  return { haystack, sources: [...new Set(sources)] };
+  return buckets;
 }
 
 function categoryMatches(
@@ -245,22 +299,116 @@ function detectVariant(haystack: string): string | null {
   return null;
 }
 
-function scoreIdentityConfidence(
+function detectFromHaystack(
+  text: string,
+  category: DealCategory
+): Omit<SourceDetection, "source" | "weight"> | null {
+  const haystack = text.toLowerCase().trim();
+  if (!haystack) return null;
+
+  const brand = detectBrand(haystack, category);
+  const productFamily = detectProductFamily(haystack, category, brand);
+  const model = detectModel(haystack, category);
+  const variant = detectVariant(haystack);
+
+  if (!brand && !productFamily && !model && !variant) return null;
+
+  return { brand, model, productFamily, variant };
+}
+
+function collectSourceDetections(
+  input: DealInput,
+  comps?: ComparableSale[],
+  extra?: ItemIdentitySources
+): SourceDetection[] {
+  const buckets = buildIdentityBuckets(input, comps, extra);
+  const detections: SourceDetection[] = [];
+
+  for (const bucket of buckets) {
+    if (!bucket.text.trim()) continue;
+    const evidenceSource = BUCKET_TO_EVIDENCE[bucket.key];
+    if (!evidenceSource) continue;
+
+    const detected = detectFromHaystack(bucket.text, input.category);
+    if (!detected) continue;
+
+    detections.push({
+      ...detected,
+      source: evidenceSource,
+      weight: SOURCE_WEIGHT[evidenceSource],
+    });
+  }
+
+  return detections;
+}
+
+function countFieldConflicts(
+  detections: SourceDetection[],
+  field: keyof Pick<SourceDetection, "brand" | "model">
+): number {
+  const values = detections
+    .map((d) => d[field])
+    .filter((v): v is string => Boolean(v));
+  const unique = new Set(values.map((v) => v.toLowerCase()));
+  return Math.max(0, unique.size - 1);
+}
+
+function pickWeightedConsensus(
+  detections: SourceDetection[],
+  field: keyof Pick<SourceDetection, "brand" | "model" | "productFamily" | "variant">
+): string | null {
+  const votes = new Map<string, { value: string; weight: number }>();
+
+  for (const detection of detections) {
+    const value = detection[field];
+    if (!value) continue;
+    const key = value.toLowerCase();
+    const existing = votes.get(key);
+    if (existing) {
+      existing.weight += detection.weight;
+    } else {
+      votes.set(key, { value, weight: detection.weight });
+    }
+  }
+
+  if (votes.size === 0) return null;
+
+  let best: { value: string; weight: number } | null = null;
+  for (const entry of votes.values()) {
+    if (!best || entry.weight > best.weight) best = entry;
+  }
+  return best?.value ?? null;
+}
+
+function calibrateIdentityConfidence(
+  detections: SourceDetection[],
   brand: string | null,
   model: string | null,
   productFamily: string | null,
   variant: string | null,
-  sourceCount: number,
+  conflictCount: number,
   category: DealCategory
 ): IdentityConfidence {
-  let score = 0;
+  if (detections.length === 0 || (!brand && !model && !productFamily)) {
+    return "low";
+  }
 
+  let score = 0;
   if (brand) score += 2;
   if (model) score += 3;
   if (productFamily) score += 2;
   if (variant) score += 1;
-  if (sourceCount >= 3) score += 1;
-  if (sourceCount >= 2 && brand) score += 1;
+  if (detections.length >= 2) score += 1;
+  if (detections.length >= 3) score += 1;
+
+  const primarySources = detections.filter((d) =>
+    d.source === "itemName" ||
+    d.source === "notes" ||
+    d.source === "ocr" ||
+    d.source === "listingText"
+  );
+  if (primarySources.length >= 2) score += 2;
+  if (primarySources.some((d) => d.brand)) score += 1;
 
   if (
     category === "Collectibles & Antiques" &&
@@ -270,9 +418,18 @@ function scoreIdentityConfidence(
     score += 2;
   }
 
-  if (brand && model) return score >= 4 ? "high" : "medium";
-  if (brand && productFamily) return score >= 4 ? "high" : "medium";
-  if (model || productFamily) return "medium";
+  if (conflictCount > 0) score -= conflictCount * 3;
+  if (!model && brand) score -= 1;
+  if (detections.every((d) => d.source === "url" || d.source === "comparableSales")) {
+    score -= 3;
+  }
+  if (detections.length === 1 && detections[0].source === "url") score -= 2;
+
+  if (conflictCount > 0) return "low";
+  if (brand && model && score >= 6) return "high";
+  if (brand && (model || productFamily) && score >= 4) return "high";
+  if (brand && score >= 3) return "medium";
+  if (model || productFamily) return score >= 3 ? "medium" : "low";
   if (brand) return "low";
   return "low";
 }
@@ -296,25 +453,56 @@ function buildDisplayLabel(
   return parts.join(" ");
 }
 
-export function getItemIdentityFromText(
-  text: string,
+function assembleIdentity(
+  detections: SourceDetection[],
   category: DealCategory
 ): ItemIdentity {
-  const haystack = text.toLowerCase();
-  if (!haystack.trim()) return { ...EMPTY_ITEM_IDENTITY };
+  if (detections.length === 0) {
+    return { ...EMPTY_ITEM_IDENTITY };
+  }
 
-  const brand = detectBrand(haystack, category);
-  const productFamily = detectProductFamily(haystack, category, brand);
-  const model = detectModel(haystack, category);
-  const variant = detectVariant(haystack);
-  const confidence = scoreIdentityConfidence(
+  const brandConflictCount = countFieldConflicts(detections, "brand");
+  const modelConflictCount = countFieldConflicts(detections, "model");
+  const conflictCount = brandConflictCount + modelConflictCount;
+  const hasConflict = conflictCount > 0;
+
+  const brand =
+    hasConflict && brandConflictCount > 0
+      ? null
+      : pickWeightedConsensus(detections, "brand");
+  const model =
+    hasConflict && modelConflictCount > 0
+      ? null
+      : pickWeightedConsensus(detections, "model");
+  const productFamily = pickWeightedConsensus(detections, "productFamily");
+  const variant = pickWeightedConsensus(detections, "variant");
+
+  const confidence = calibrateIdentityConfidence(
+    detections,
     brand,
     model,
     productFamily,
     variant,
-    1,
+    conflictCount,
     category
   );
+
+  const matchedSources = [
+    ...new Set(detections.map((d) => d.source)),
+  ] as IdentityEvidenceSource[];
+
+  const warnings: string[] = [];
+  if (hasConflict) {
+    warnings.push(IDENTITY_CONFLICT_WARNING);
+  }
+  if (confidence === "low" && (brand || model || productFamily)) {
+    warnings.push("Limited identity evidence — treat as uncertain");
+  }
+
+  const displayLabel =
+    confidence === "low" && !brand && !model && !productFamily
+      ? "Unknown product"
+      : buildDisplayLabel(brand, model, productFamily, variant);
 
   return {
     brand,
@@ -322,9 +510,37 @@ export function getItemIdentityFromText(
     productFamily,
     variant,
     confidence,
-    displayLabel: buildDisplayLabel(brand, model, productFamily, variant),
-    sources: ["text"],
+    displayLabel,
+    sources: matchedSources.map((s) => SOURCE_LABELS[s]),
+    evidence: {
+      matchedSources,
+      matchCount: detections.length,
+      conflictCount,
+    },
+    hasConflict,
+    warnings,
   };
+}
+
+export function getItemIdentityFromText(
+  text: string,
+  category: DealCategory
+): ItemIdentity {
+  if (!text.trim()) return { ...EMPTY_ITEM_IDENTITY };
+
+  const detected = detectFromHaystack(text, category);
+  if (!detected) return { ...EMPTY_ITEM_IDENTITY };
+
+  return assembleIdentity(
+    [
+      {
+        ...detected,
+        source: "itemName",
+        weight: SOURCE_WEIGHT.itemName,
+      },
+    ],
+    category
+  );
 }
 
 export function getItemIdentity(
@@ -333,54 +549,43 @@ export function getItemIdentity(
   extra?: ItemIdentitySources
 ): ItemIdentity {
   if (!isIdentitySupportedCategory(input.category)) {
-    return { ...EMPTY_ITEM_IDENTITY, sources: [] };
+    return { ...EMPTY_ITEM_IDENTITY };
   }
 
-  const { haystack, sources } = buildIdentityHaystack(input, comps, extra);
+  const detections = collectSourceDetections(input, comps, extra);
+  return assembleIdentity(detections, input.category);
+}
 
-  if (!haystack.trim()) {
-    return { ...EMPTY_ITEM_IDENTITY, sources: [] };
-  }
-
-  const brand = detectBrand(haystack, input.category);
-  const productFamily = detectProductFamily(haystack, input.category, brand);
-  const model = detectModel(haystack, input.category);
-  const variant = detectVariant(haystack);
-  const confidence = scoreIdentityConfidence(
-    brand,
-    model,
-    productFamily,
-    variant,
-    sources.length,
-    input.category
-  );
-
+export function buildIdentityContextFromInput(
+  input: DealInput,
+  extra?: ItemIdentitySources
+): ItemIdentitySources {
   return {
-    brand,
-    model,
-    productFamily,
-    variant,
-    confidence,
-    displayLabel: buildDisplayLabel(brand, model, productFamily, variant),
-    sources,
+    listingText: extra?.listingText,
+    ocrText: extra?.ocrText,
+    urlText: extra?.urlText ?? extractUrlIdentityHints(input.listingUrl),
   };
 }
 
-/** Bump estimate confidence one step when identity is strong. */
+/** Bump estimate confidence one step when identity is strong and uncontested. */
 export function upgradeEstimateConfidenceFromIdentity(
   confidence: "low" | "medium" | "high",
   identity: ItemIdentity
 ): "low" | "medium" | "high" {
-  if (identity.confidence !== "high") return confidence;
+  if (identity.hasConflict || identity.confidence !== "high") {
+    return confidence;
+  }
   if (confidence === "low") return "medium";
   if (confidence === "medium") return "high";
   return confidence;
 }
 
-/** Risk reduction when product identity is well known. */
+/** Risk adjustment from identity quality. */
 export function getIdentityRiskAdjustment(identity: ItemIdentity): number {
+  if (identity.hasConflict) return 0.5;
   if (identity.confidence === "high") return -0.5;
   if (identity.confidence === "medium" && identity.brand) return -0.25;
+  if (identity.confidence === "low" && !identity.brand) return 0.25;
   return 0;
 }
 
@@ -391,7 +596,11 @@ export function buildIdentityVerdictNotes(identity: ItemIdentity): string[] {
 
   const notes: string[] = [];
 
-  if (identity.confidence === "high") {
+  if (identity.hasConflict) {
+    notes.push(
+      "Identity signals conflict — verify brand and model before buying."
+    );
+  } else if (identity.confidence === "high") {
     notes.push(
       `Identified product: ${identity.displayLabel} — easier to comp and price.`
     );
@@ -405,6 +614,7 @@ export function buildIdentityVerdictNotes(identity: ItemIdentity): string[] {
 }
 
 export function buildIdentityHaggleNotes(identity: ItemIdentity): string[] {
+  if (identity.hasConflict) return [];
   if (identity.confidence !== "high" && identity.confidence !== "medium") {
     return [];
   }
@@ -431,6 +641,7 @@ export function buildIdentityHaggleNotes(identity: ItemIdentity): string[] {
 export function buildIdentityCategoryBoosters(
   identity: ItemIdentity
 ): { label: string; message: string }[] {
+  if (identity.hasConflict) return [];
   if (!identity.brand && !identity.productFamily) return [];
 
   const boosters: { label: string; message: string }[] = [];

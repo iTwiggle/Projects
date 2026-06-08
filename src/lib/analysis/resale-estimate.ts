@@ -133,7 +133,8 @@ function scoreItemDetail(
   if (COMP_HINT_PATTERN.test(input.notes)) score += 2;
 
   const identity =
-    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+    options?.itemIdentity ??
+    getItemIdentity(input, options?.comps, options?.identitySources);
   if (identity.confidence === "high") score += 2;
   else if (identity.confidence === "medium") score += 1;
 
@@ -171,7 +172,8 @@ function estimateFromSignals(
   const categoryMultiplier = CATEGORY_RESALE_MULTIPLIER[input.category];
   const conditionFactor = CONDITION_RESALE_FACTOR[input.condition];
   const itemIdentity =
-    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+    options?.itemIdentity ??
+    getItemIdentity(input, options?.comps, options?.identitySources);
   const detailScore = scoreItemDetail(input, { ...options, itemIdentity });
   const categoryIntel =
     options?.categoryIntel ??
@@ -229,7 +231,8 @@ export function buildResaleEstimate(
   }
 
   const itemIdentity =
-    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+    options?.itemIdentity ??
+    getItemIdentity(input, options?.comps, options?.identitySources);
   const categoryIntel =
     options?.categoryIntel ??
     buildCategoryIntelligence(input, options?.comps, itemIdentity);

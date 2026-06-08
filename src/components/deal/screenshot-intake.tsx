@@ -48,12 +48,14 @@ import {
 import type { DealInput } from "@/lib/types/deal";
 import { DEAL_CATEGORIES, DEAL_CONDITIONS } from "@/lib/types/deal";
 import type { IntakeExtractionSource } from "@/lib/types/intake-source";
+import type { ItemIdentitySources } from "@/lib/types/item-identity";
 
 interface ScreenshotIntakeProps {
   onRequestFill: (
     proposed: Partial<DealInput>,
     meta: { source: IntakeExtractionSource }
   ) => void;
+  onIdentitySourcesChange?: (sources: ItemIdentitySources) => void;
 }
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -64,7 +66,10 @@ const IDLE_OCR_PROGRESS: OcrProgress = {
   message: "",
 };
 
-export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
+export function ScreenshotIntake({
+  onRequestFill,
+  onIdentitySourcesChange,
+}: ScreenshotIntakeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ocrAbortRef = useRef(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -102,6 +107,20 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
+
+  useEffect(() => {
+    if (!onIdentitySourcesChange) return;
+    const hasOcr = !!rawOcrText.trim();
+    const hasListing = !!listingText.trim();
+    if (!hasOcr && !hasListing) {
+      onIdentitySourcesChange({});
+      return;
+    }
+    onIdentitySourcesChange({
+      ocrText: hasOcr ? rawOcrText : undefined,
+      listingText: hasListing ? listingText : undefined,
+    });
+  }, [rawOcrText, listingText, onIdentitySourcesChange]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

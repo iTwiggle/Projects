@@ -36,6 +36,7 @@ import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 import type { BrainModeId } from "@/lib/types/brain-mode";
 import type { ComparableSale } from "@/lib/types/comps";
 import { EMPTY_DEAL_INPUT, type DealInput, type SavedDeal } from "@/lib/types/deal";
+import type { ItemIdentitySources } from "@/lib/types/item-identity";
 
 interface DealAnalyzerProps {
   onSave: (input: DealInput, options?: SaveDealOptions) => void;
@@ -80,10 +81,13 @@ export function DealAnalyzer({
   const [compsEstimateManualOff, setCompsEstimateManualOff] = useState(
     () => analyzeDraft?.compsEstimateManualOff ?? false
   );
+  const [identitySources, setIdentitySources] = useState<ItemIdentitySources>(
+    () => analyzeDraft?.identitySources ?? {}
+  );
 
   const analysisOptions = useMemo(
-    () => ({ comps, useCompsForResale }),
-    [comps, useCompsForResale]
+    () => ({ comps, useCompsForResale, identitySources }),
+    [comps, useCompsForResale, identitySources]
   );
 
   useEffect(() => {
@@ -94,9 +98,10 @@ export function DealAnalyzer({
       comps,
       useCompsForResale,
       compsEstimateManualOff,
+      identitySources,
       updatedAt: new Date().toISOString(),
     });
-  }, [preview, comps, useCompsForResale, compsEstimateManualOff]);
+  }, [preview, comps, useCompsForResale, compsEstimateManualOff, identitySources]);
 
   function handleFieldTouched(field: PrefillableField) {
     setTouchedFields((prev) => new Set(prev).add(field));
@@ -134,6 +139,7 @@ export function DealAnalyzer({
     setComps([]);
     setUseCompsForResale(false);
     setCompsEstimateManualOff(false);
+    setIdentitySources({});
     clearAnalyzeDraft();
   }
 
@@ -153,8 +159,13 @@ export function DealAnalyzer({
 
   const previewViewModel = useMemo(() => {
     if (!preview) return null;
-    return getPreviewViewModel(preview.input, comps, useCompsForResale);
-  }, [preview, comps, useCompsForResale]);
+    return getPreviewViewModel(
+      preview.input,
+      comps,
+      useCompsForResale,
+      identitySources
+    );
+  }, [preview, comps, useCompsForResale, identitySources]);
 
   const brainResult = useMemo(() => {
     if (!preview || !brainMode) return null;
@@ -178,7 +189,10 @@ export function DealAnalyzer({
         onRequestFill={handleRequestFill}
       />
 
-      <ScreenshotIntake onRequestFill={handleRequestFill} />
+      <ScreenshotIntake
+        onRequestFill={handleRequestFill}
+        onIdentitySourcesChange={setIdentitySources}
+      />
 
       <DealForm
         value={formInput}

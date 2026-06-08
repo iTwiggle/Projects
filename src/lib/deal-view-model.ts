@@ -24,7 +24,11 @@ import type {
 import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
-import type { ItemIdentity } from "@/lib/types/item-identity";
+import type {
+  IdentityConfidence,
+  ItemIdentity,
+  ItemIdentitySources,
+} from "@/lib/types/item-identity";
 import type { HaggleGuide } from "@/lib/types/haggle";
 import { resolveListingLink } from "@/lib/intake/listing-url";
 import type { ListingLinkInfo } from "@/lib/types/listing-url";
@@ -58,6 +62,13 @@ export interface DealViewModelCategoryIntel {
   inspectionChecklist: string[];
 }
 
+export interface DealViewModelIdentitySummary {
+  confidence: IdentityConfidence;
+  evidenceCount: number;
+  hasConflict: boolean;
+  warnings: string[];
+}
+
 export interface DealViewModel {
   id: string;
   createdAt: string;
@@ -74,6 +85,7 @@ export interface DealViewModel {
   listing: ListingLinkInfo;
   categoryIntel: DealViewModelCategoryIntel;
   itemIdentity: ItemIdentity;
+  identity: DealViewModelIdentitySummary;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -90,14 +102,27 @@ function buildResaleDisplay(estimate: ResaleEstimate): {
   return { resaleDisplay, showResaleRange };
 }
 
+function buildIdentitySummary(identity: ItemIdentity): DealViewModelIdentitySummary {
+  return {
+    confidence: identity.confidence,
+    evidenceCount: identity.evidence.matchCount,
+    hasConflict: identity.hasConflict,
+    warnings: identity.warnings,
+  };
+}
+
 function buildWarnings(
   input: DealInput,
   analysis: DealAnalysis,
   useCompsForResale: boolean,
   compSummary: CompSummary | null,
-  categoryIntel: CategoryIntelligence
+  categoryIntel: CategoryIntelligence,
+  itemIdentity: ItemIdentity
 ): string[] {
-  const warnings: string[] = [...categoryIntel.warnings];
+  const warnings: string[] = [
+    ...categoryIntel.warnings,
+    ...itemIdentity.warnings,
+  ];
   const { resaleEstimate } = analysis;
 
   if (hasManualResaleValue(input) && useCompsForResale) {
@@ -135,7 +160,8 @@ function buildDisplay(
   verdict: GoblinVerdict,
   useCompsForResale: boolean,
   compSummary: CompSummary | null,
-  categoryIntel: CategoryIntelligence
+  categoryIntel: CategoryIntelligence,
+  itemIdentity: ItemIdentity
 ): DealViewModelDisplay {
   const estimate = analysis.resaleEstimate;
   const { resaleDisplay, showResaleRange } = buildResaleDisplay(estimate);
@@ -153,7 +179,8 @@ function buildDisplay(
       analysis,
       useCompsForResale,
       compSummary,
-      categoryIntel
+      categoryIntel,
+      itemIdentity
     ),
     advice: categoryIntel.advice,
   };
@@ -163,15 +190,17 @@ function buildDealViewModel(
   input: DealInput,
   comps: ComparableSale[],
   useCompsForResale: boolean,
-  meta: { id: string; createdAt: string; updatedAt: string }
+  meta: { id: string; createdAt: string; updatedAt: string },
+  identitySources?: ItemIdentitySources
 ): DealViewModel {
-  const itemIdentity = getItemIdentity(input, comps);
+  const itemIdentity = getItemIdentity(input, comps, identitySources);
   const categoryIntel = buildCategoryIntelligence(input, comps, itemIdentity);
   const analysisOptions = {
     comps,
     useCompsForResale,
     categoryIntel,
     itemIdentity,
+    identitySources,
   };
   const resolved = resolveDeal(input, analysisOptions);
   const analysis = analyzeDeal(input, analysisOptions);
@@ -188,7 +217,8 @@ function buildDealViewModel(
     verdict,
     useCompsForResale,
     compSummary,
-    categoryIntel
+    categoryIntel,
+    itemIdentity
   );
   const haggle = calculateHaggleGuide(
     input,
@@ -217,6 +247,7 @@ function buildDealViewModel(
       inspectionChecklist: categoryIntel.inspectionChecklist,
     },
     itemIdentity,
+    identity: buildIdentitySummary(itemIdentity),
   };
 }
 
@@ -239,14 +270,21 @@ export function getDealViewModel(deal: SavedDeal): DealViewModel {
 export function getPreviewViewModel(
   input: DealInput,
   comps: ComparableSale[],
-  useCompsForResale: boolean
+  useCompsForResale: boolean,
+  identitySources?: ItemIdentitySources
 ): DealViewModel {
   const normalized = normalizeDealInput(input);
-  return buildDealViewModel(normalized, comps, useCompsForResale, {
-    id: "preview",
-    createdAt: "",
-    updatedAt: "",
-  });
+  return buildDealViewModel(
+    normalized,
+    comps,
+    useCompsForResale,
+    {
+      id: "preview",
+      createdAt: "",
+      updatedAt: "",
+    },
+    identitySources
+  );
 }
 
 export function getDealViewModels(deals: SavedDeal[]): DealViewModel[] {

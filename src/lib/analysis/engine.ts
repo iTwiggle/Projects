@@ -215,7 +215,8 @@ export function analyzeDeal(
   options?: AnalysisOptions
 ): DealAnalysis {
   const itemIdentity =
-    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+    options?.itemIdentity ??
+    getItemIdentity(input, options?.comps, options?.identitySources);
   const categoryIntel =
     options?.categoryIntel ??
     buildCategoryIntelligence(input, options?.comps, itemIdentity);

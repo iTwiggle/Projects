@@ -193,6 +193,8 @@ describe("getDealViewModel", () => {
 
     expect(vm.itemIdentity.brand).toBe("Milwaukee");
     expect(vm.itemIdentity.confidence).toMatch(/medium|high/);
+    expect(vm.identity.evidenceCount).toBeGreaterThan(0);
+    expect(vm.identity.hasConflict).toBe(false);
   });
 
   it("includes category intelligence in view model", () => {

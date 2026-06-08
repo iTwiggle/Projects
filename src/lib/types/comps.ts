@@ -1,6 +1,9 @@
 import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
 import type { DealCondition, EstimateConfidence } from "@/lib/types/deal";
-import type { ItemIdentity } from "@/lib/types/item-identity";
+import type {
+  ItemIdentity,
+  ItemIdentitySources,
+} from "@/lib/types/item-identity";
 
 export const COMP_PLATFORMS = [
   "eBay",
@@ -42,6 +45,7 @@ export interface AnalysisOptions {
   useCompsForResale?: boolean;
   categoryIntel?: CategoryIntelligence;
   itemIdentity?: ItemIdentity;
+  identitySources?: ItemIdentitySources;
 }
 
 export const MIN_COMPS_FOR_ESTIMATE = 3;

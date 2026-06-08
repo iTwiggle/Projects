@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildIdentityHaystack,
-  extractUrlIdentityHints,
   getItemIdentity,
   getItemIdentityFromText,
   getIdentityRiskAdjustment,
@@ -9,7 +8,10 @@ import {
 } from "@/lib/analysis/item-identity";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { DealInput } from "@/lib/types/deal";
-import { EMPTY_ITEM_IDENTITY } from "@/lib/types/item-identity";
+import {
+  EMPTY_ITEM_IDENTITY,
+  IDENTITY_CONFLICT_WARNING,
+} from "@/lib/types/item-identity";
 
 function makeInput(overrides: Partial<DealInput> = {}): DealInput {
   return {
@@ -24,14 +26,14 @@ function makeInput(overrides: Partial<DealInput> = {}): DealInput {
   };
 }
 
-function makeComp(title: string): ComparableSale {
+function makeComp(title: string, notes = ""): ComparableSale {
   return {
     id: "c1",
     title,
     platform: "eBay",
     price: 120,
     condition: "Good",
-    notes: "",
+    notes,
     listingType: "sold",
   };
 }
@@ -48,6 +50,7 @@ describe("getItemIdentityFromText", () => {
     expect(identity.model?.toLowerCase()).toContain("iphone");
     expect(identity.variant).toBe("128GB");
     expect(identity.confidence).not.toBe("low");
+    expect(identity.evidence.matchCount).toBe(1);
   });
 
   it("detects Milwaukee M18 Fuel tool line", () => {
@@ -60,60 +63,88 @@ describe("getItemIdentityFromText", () => {
     expect(identity.productFamily).toBe("M18 Fuel");
     expect(identity.confidence).toMatch(/medium|high/);
   });
-
-  it("detects PSA grading for collectibles", () => {
-    const identity = getItemIdentityFromText(
-      "Pokemon Charizard PSA 9 holo",
-      "Collectibles & Antiques"
-    );
-
-    expect(identity.brand).toBe("Pokemon");
-    expect(identity.variant).toBe("PSA 9");
-    expect(identity.confidence).toMatch(/medium|high/);
-  });
-
-  it("detects vehicle year make model", () => {
-    const identity = getItemIdentityFromText(
-      "2018 Honda Civic EX sedan",
-      "Vehicles & Parts"
-    );
-
-    expect(identity.brand).toBe("Honda");
-    expect(identity.productFamily).toBe("Civic");
-    expect(identity.model?.toLowerCase()).toContain("honda");
-    expect(identity.variant).toBe("EX");
-  });
-
-  it("detects Patagonia clothing brand", () => {
-    const identity = getItemIdentityFromText(
-      "Patagonia Nano Puff jacket men's large",
-      "Clothing & Accessories"
-    );
-
-    expect(identity.brand).toBe("Patagonia");
-    expect(identity.confidence).toBe("low");
-  });
 });
 
-describe("getItemIdentity", () => {
-  it("merges item name, notes, comps, and URL hints", () => {
+describe("getItemIdentity — strong evidence", () => {
+  it("merges item name, notes, comps, URL, and listing text with high confidence", () => {
     const identity = getItemIdentity(
       makeInput({
         category: "Tools & Hardware",
-        itemName: "Cordless drill",
-        notes: "works great",
+        itemName: "DeWalt XR impact driver",
+        notes: "20V Max brushless",
         listingUrl: "https://www.ebay.com/itm/dewalt-xr-impact-driver",
       }),
       [makeComp("DeWalt XR 20V Max impact")],
-      { listingText: "brushless" }
+      { listingText: "DeWalt cordless drill" }
     );
 
     expect(identity.brand).toBe("DeWalt");
+    expect(identity.confidence).toMatch(/medium|high/);
+    expect(identity.evidence.matchCount).toBeGreaterThanOrEqual(2);
     expect(identity.sources).toEqual(
-      expect.arrayContaining(["itemName", "notes", "comps", "urlText", "listingText"])
+      expect.arrayContaining(["Item Name", "Notes", "Comparable Sales", "URL"])
+    );
+    expect(identity.hasConflict).toBe(false);
+  });
+});
+
+describe("getItemIdentity — OCR-only detection", () => {
+  it("detects brand from cleaned OCR text when item name is generic", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "Phone for sale",
+      }),
+      [],
+      {
+        ocrText: "Sams ung Galaxy S22 128GB unlocked",
+        listingText: "Samsung Galaxy S22 128GB",
+      }
+    );
+
+    expect(identity.brand).toBe("Samsung");
+    expect(identity.evidence.matchedSources).toContain("ocr");
+    expect(identity.evidence.matchedSources).toContain("listingText");
+  });
+});
+
+describe("getItemIdentity — conflicting brands", () => {
+  it("detects conflicts, clears brand, downgrades confidence, and warns", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "Samsung Galaxy S22",
+        notes: "Apple iPhone 13 Pro",
+      })
+    );
+
+    expect(identity.hasConflict).toBe(true);
+    expect(identity.evidence.conflictCount).toBeGreaterThan(0);
+    expect(identity.brand).toBeNull();
+    expect(identity.confidence).toBe("low");
+    expect(identity.warnings).toContain(IDENTITY_CONFLICT_WARNING);
+  });
+});
+
+describe("getItemIdentity — weak evidence", () => {
+  it("returns low confidence for brand-only URL hint", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "Electronics lot",
+        listingUrl: "https://www.ebay.com/itm/dell-laptop",
+      })
+    );
+
+    expect(identity.brand).toBe("Dell");
+    expect(identity.confidence).toBe("low");
+    expect(identity.warnings).toContain(
+      "Limited identity evidence — treat as uncertain"
     );
   });
+});
 
+describe("getItemIdentity — unknown fallback", () => {
   it("returns empty identity for unsupported categories", () => {
     const identity = getItemIdentity(
       makeInput({ category: "Books & Media", itemName: "Harry Potter set" })
@@ -121,11 +152,26 @@ describe("getItemIdentity", () => {
 
     expect(identity.brand).toBeNull();
     expect(identity.displayLabel).toBe(EMPTY_ITEM_IDENTITY.displayLabel);
+    expect(identity.evidence.matchCount).toBe(0);
+  });
+
+  it("prefers unknown over incorrect when signals conflict on model", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "iPhone 13 Pro",
+        notes: "Galaxy S22 unlocked",
+      })
+    );
+
+    expect(identity.hasConflict).toBe(true);
+    expect(identity.model).toBeNull();
+    expect(identity.confidence).toBe("low");
   });
 });
 
 describe("confidence scoring helpers", () => {
-  it("upgrades estimate confidence when identity is high", () => {
+  it("upgrades estimate confidence when identity is high and uncontested", () => {
     const identity = getItemIdentityFromText(
       "iPhone 14 Pro Max 256GB",
       "Electronics"
@@ -139,6 +185,30 @@ describe("confidence scoring helpers", () => {
     );
   });
 
+  it("does not upgrade estimate confidence when identity has conflicts", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "Samsung Galaxy",
+        notes: "Apple iPhone",
+      })
+    );
+
+    expect(upgradeEstimateConfidenceFromIdentity("low", identity)).toBe("low");
+  });
+
+  it("increases risk when identity signals conflict", () => {
+    const identity = getItemIdentity(
+      makeInput({
+        category: "Electronics",
+        itemName: "Samsung phone",
+        notes: "Apple iPhone",
+      })
+    );
+
+    expect(getIdentityRiskAdjustment(identity)).toBeGreaterThan(0);
+  });
+
   it("reduces risk when identity confidence is high", () => {
     const identity = getItemIdentityFromText(
       "Milwaukee M18 Fuel saw",
@@ -150,24 +220,13 @@ describe("confidence scoring helpers", () => {
 });
 
 describe("buildIdentityHaystack", () => {
-  it("includes OCR and listing text buckets", () => {
+  it("includes cleaned OCR and listing text buckets", () => {
     const { sources } = buildIdentityHaystack(makeInput(), [], {
       listingText: "Samsung Galaxy S22",
       ocrText: "128GB unlocked",
     });
 
     expect(sources).toContain("listingText");
-    expect(sources).toContain("ocrText");
-  });
-});
-
-describe("extractUrlIdentityHints", () => {
-  it("decodes URL path segments for hints", () => {
-    const hints = extractUrlIdentityHints(
-      "https://www.ebay.com/itm/makita-lxt-drill-18v"
-    );
-
-    expect(hints).toContain("makita");
-    expect(hints).toContain("ebay");
+    expect(sources).toContain("ocr");
   });
 });

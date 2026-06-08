@@ -392,7 +392,8 @@ export function analyzeWithBrainMode(
 ): BrainModeResult {
   const mode = BRAIN_MODES[modeId];
   const itemIdentity =
-    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+    options?.itemIdentity ??
+    getItemIdentity(input, options?.comps, options?.identitySources);
   const categoryIntel =
     options?.categoryIntel ??
     buildCategoryIntelligence(input, options?.comps, itemIdentity);

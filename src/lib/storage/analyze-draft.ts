@@ -1,5 +1,6 @@
 import type { ComparableSale } from "@/lib/types/comps";
 import type { DealInput } from "@/lib/types/deal";
+import type { ItemIdentitySources } from "@/lib/types/item-identity";
 
 const DRAFT_STORAGE_KEY = "marketplace-goblin-analyze-draft";
 
@@ -8,6 +9,7 @@ export interface AnalyzeDraft {
   comps: ComparableSale[];
   useCompsForResale: boolean;
   compsEstimateManualOff: boolean;
+  identitySources?: ItemIdentitySources;
   updatedAt: string;
 }
 
@@ -42,6 +44,7 @@ export function loadAnalyzeDraft(): AnalyzeDraft | null {
       comps: draft.comps.filter(isComparableSale),
       useCompsForResale: draft.useCompsForResale === true,
       compsEstimateManualOff: draft.compsEstimateManualOff === true,
+      identitySources: draft.identitySources,
       updatedAt: draft.updatedAt ?? new Date().toISOString(),
     };
   } catch {

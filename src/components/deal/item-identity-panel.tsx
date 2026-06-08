@@ -1,6 +1,6 @@
 "use client";
 
-import { Fingerprint } from "lucide-react";
+import { AlertTriangle, Fingerprint } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ItemIdentity } from "@/lib/types/item-identity";
@@ -17,14 +17,15 @@ const confidenceStyles = {
 };
 
 const confidenceLabels = {
-  low: "Low identity confidence",
-  medium: "Medium identity confidence",
-  high: "High identity confidence",
+  low: "Low confidence",
+  medium: "Medium confidence",
+  high: "High confidence",
 };
 
 export function ItemIdentityPanel({ identity }: ItemIdentityPanelProps) {
   const hasIdentity =
     identity.brand || identity.model || identity.productFamily;
+  const evidenceCount = identity.evidence.matchCount;
 
   return (
     <Card className="border-border/50 bg-card/60">
@@ -42,11 +43,28 @@ export function ItemIdentityPanel({ identity }: ItemIdentityPanelProps) {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          From item name, notes, comps, and listing URL hints
+          Inferred from item details, listing text, OCR, comps, and URL hints
         </p>
       </CardHeader>
 
       <CardContent className="space-y-3">
+        {identity.warnings.length > 0 && (
+          <div className="space-y-1.5">
+            {identity.warnings.map((warning) => (
+              <p
+                key={warning}
+                className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200"
+              >
+                <AlertTriangle
+                  className="mt-0.5 size-3.5 shrink-0 text-amber-400"
+                  aria-hidden
+                />
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+
         {hasIdentity ? (
           <>
             <div className="grid grid-cols-2 gap-2">
@@ -79,9 +97,19 @@ export function ItemIdentityPanel({ identity }: ItemIdentityPanelProps) {
             </p>
 
             {identity.sources.length > 0 && (
-              <p className="text-[10px] text-muted-foreground">
-                Sources: {identity.sources.join(", ")}
-              </p>
+              <div className="rounded-lg bg-background/60 p-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Evidence sources
+                </p>
+                <p className="mt-1 text-xs text-foreground">
+                  {identity.sources.join(" · ")}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {evidenceCount} supporting signal{evidenceCount === 1 ? "" : "s"}
+                  {identity.hasConflict &&
+                    ` · ${identity.evidence.conflictCount} conflict${identity.evidence.conflictCount === 1 ? "" : "s"}`}
+                </p>
+              </div>
             )}
           </>
         ) : (
