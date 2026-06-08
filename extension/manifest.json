@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Marketplace Goblin Comp Capture",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Capture visible eBay sold/active listings for Marketplace Goblin comp import.",
   "permissions": ["activeTab", "scripting", "clipboardWrite"],
   "host_permissions": [

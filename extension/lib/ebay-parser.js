@@ -24,21 +24,84 @@ export function parsePrice(text) {
 
 /**
  * @param {string} pageUrl
+ * @returns {boolean}
+ */
+export function hasSoldSearchContext(pageUrl) {
+  try {
+    const url = new URL(pageUrl);
+    return (
+      url.searchParams.get("LH_Sold") === "1" ||
+      url.searchParams.get("LH_Complete") === "1"
+    );
+  } catch {
+    return (
+      pageUrl.includes("LH_Sold=1") || pageUrl.includes("LH_Complete=1")
+    );
+  }
+}
+
+/**
+ * @param {string} pageUrl
+ * @param {string} cardText
+ * @param {string} [subtitleText]
+ * @returns {{ listingType: "sold" | "listed", confidence: "low" | "medium" | "high" }}
+ */
+export function detectEbayListingTypeDetailed(
+  pageUrl,
+  cardText,
+  subtitleText = ""
+) {
+  const row = `${cardText} ${subtitleText}`.toLowerCase();
+  const soldContext = hasSoldSearchContext(pageUrl);
+  const hasSoldText =
+    /\bsold\b/.test(row) ||
+    /\bended\b/.test(row) ||
+    /\bsold\s+[a-z]{3}\s+\d{1,2}/i.test(row);
+  const hasActiveListingText =
+    /\bbuy it now\b/.test(row) ||
+    /\bor best offer\b/.test(row) ||
+    /\bbest offer\b/.test(row) ||
+    /\badd to (cart|watchlist)\b/.test(row) ||
+    /\b\d+\s+available\b/.test(row);
+
+  if (hasSoldText && !hasActiveListingText) {
+    return {
+      listingType: "sold",
+      confidence: soldContext ? "high" : "medium",
+    };
+  }
+
+  if (hasSoldText && hasActiveListingText) {
+    return { listingType: "sold", confidence: "low" };
+  }
+
+  if (soldContext && !hasActiveListingText) {
+    return { listingType: "sold", confidence: "medium" };
+  }
+
+  if (soldContext && hasActiveListingText) {
+    return { listingType: "listed", confidence: "low" };
+  }
+
+  if (hasActiveListingText) {
+    return { listingType: "listed", confidence: "high" };
+  }
+
+  return {
+    listingType: "listed",
+    confidence: soldContext ? "low" : "medium",
+  };
+}
+
+/**
+ * @param {string} pageUrl
  * @param {string} cardText
  * @param {string} [subtitleText]
  * @returns {"sold" | "listed"}
  */
 export function detectEbayListingType(pageUrl, cardText, subtitleText = "") {
-  const haystack = `${pageUrl} ${cardText} ${subtitleText}`.toLowerCase();
-  if (
-    haystack.includes("lh_sold=1") ||
-    haystack.includes("lh_complete=1") ||
-    /\bsold\b/.test(haystack) ||
-    /\bended\b/.test(haystack)
-  ) {
-    return "sold";
-  }
-  return "listed";
+  return detectEbayListingTypeDetailed(pageUrl, cardText, subtitleText)
+    .listingType;
 }
 
 /**
@@ -60,11 +123,31 @@ export function extractEbaySearchQuery(pageUrl) {
  */
 export function isPromoOrPlaceholderTitle(title) {
   const lower = title.toLowerCase().trim();
+  if (!lower) return true;
+
+  const promoPatterns = [
+    /^shop on ebay$/,
+    /^sponsored$/,
+    /^advertisement$/,
+    /^ad$/,
+    /^results matching fewer words$/,
+    /^more items related to/,
+    /^custom results$/,
+  ];
+
+  return promoPatterns.some((pattern) => pattern.test(lower));
+}
+
+/**
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isSponsoredRowText(text) {
+  const lower = text.toLowerCase();
   return (
-    !lower ||
-    lower === "shop on ebay" ||
-    lower.startsWith("new listing") ||
-    lower === "sponsored"
+    /\bsponsored\b/.test(lower) ||
+    /\badvertisement\b/.test(lower) ||
+    /\bpromoted listing\b/.test(lower)
   );
 }
 
@@ -83,5 +166,24 @@ export function normalizeEbayItemUrl(href) {
     return url.toString();
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * @param {string} pageUrl
+ * @returns {"search" | "item" | null}
+ */
+export function getEbayPageKind(pageUrl) {
+  try {
+    const { pathname } = new URL(pageUrl);
+    if (pathname.includes("/sch/") || pathname.includes("/b/")) {
+      return "search";
+    }
+    if (pathname.includes("/itm/")) {
+      return "item";
+    }
+    return null;
+  } catch {
+    return null;
   }
 }

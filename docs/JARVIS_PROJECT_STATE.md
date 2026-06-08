@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (eBay extension prototype v0.1)
+Last updated: 2026-06-08 (eBay extension capture v0.2)
 
 ## Product intent
 
@@ -63,7 +63,7 @@ Saved deals schema unchanged.
 | `analyze-draft.ts` | Persists OCR/listing text for analyze session |
 | `types/comp-capture.ts` | `CapturedComp`, `CompCaptureBatch`, `CompImportReport` |
 | `comp-capture-import.ts` | Normalize captured comps → `ComparableSale[]` |
-| `extension/` | MV3 eBay comp capture → clipboard JSON (prototype) |
+| `extension/` | MV3 eBay comp capture v0.2 → clipboard JSON (search + `/itm/`) |
 
 ## Known risks / technical debt
 
@@ -73,6 +73,7 @@ Saved deals schema unchanged.
 
 ## Recent changes
 
+- eBay Extension Capture v0.2: scroll guidance, capture stats panel, sponsored/promo filtering, sold-context detection with low-confidence ambiguous rows, single `/itm/` listing capture
 - Comp Capture Import Phase 1: JSON envelope import, normalization, dedupe, mismatch warnings (117 tests)
 - Identity-Aware Comp Search Links v1: 6 marketplace links from identity or item name
 - Identity Reliability Pass v1: per-source evidence, conflict detection, OCR integration, calibrated confidence
@@ -99,8 +100,8 @@ Planned hybrid path: identity-aware search links (shipped) → browser extension
 
 **Extension spec:** [`docs/MARKETPLACE_GOBLIN_EXTENSION_SPEC.md`](./MARKETPLACE_GOBLIN_EXTENSION_SPEC.md)
 
-**Extension prototype (v0.1):** `extension/` — MV3 eBay search capture → `CompCaptureBatch` JSON → clipboard → Goblin JSON import. See `extension/README.md`.
+**Extension prototype (v0.2):** `extension/` — MV3 eBay search + single listing capture → stats panel + `CompCaptureBatch` JSON → clipboard → Goblin JSON import. See `extension/README.md`.
 
 ## Recommended next step
 
-Manual QA: load unpacked extension, capture eBay sold search, paste JSON into Goblin. Then Craigslist parser or postMessage bridge.
+Manual QA: load unpacked extension, capture eBay sold search (verify stats + scroll-and-recapture), capture a single `/itm/` listing, paste JSON into Goblin. Then postMessage Goblin bridge or Craigslist parser.
