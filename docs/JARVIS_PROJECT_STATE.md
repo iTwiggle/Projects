@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Comp Capture Import Phase 1)
+Last updated: 2026-06-08 (Extension Spec draft)
 
 ## Product intent
 
@@ -96,6 +96,8 @@ Planned hybrid path: identity-aware search links (shipped) → browser extension
 
 **Phase 1 shipped:** `CompCaptureBatch` types, `normalizeCapturedComps()`, JSON paste/file import in Comparable Sales panel, identity/search-query mismatch warnings, plain-text paste preserved.
 
+**Extension spec (draft):** [`docs/MARKETPLACE_GOBLIN_EXTENSION_SPEC.md`](./MARKETPLACE_GOBLIN_EXTENSION_SPEC.md) — user-initiated capture, per-site strategy, MVP build order (eBay first).
+
 ## Recommended next step
 
-Phase 2: browser extension prototype exporting `CompCaptureBatch` JSON for eBay sold search capture.
+Implement extension scaffold + eBay sold search capture per extension spec Step 1–2.
