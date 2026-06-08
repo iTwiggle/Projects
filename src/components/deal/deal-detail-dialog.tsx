@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { canUseCompsAsEstimate } from "@/lib/analysis/comp-calculations";
+import { resolveUseCompsForResale } from "@/lib/analysis/comp-progress";
 import { getDealViewModel } from "@/lib/deal-view-model";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { ComparableSale } from "@/lib/types/comps";
@@ -31,72 +34,102 @@ interface DealDetailDialogProps {
   ) => void;
 }
 
+function DealDetailContent({
+  deal,
+  onCompsChange,
+}: {
+  deal: SavedDeal;
+  onCompsChange: DealDetailDialogProps["onCompsChange"];
+}) {
+  const vm = getDealViewModel(deal);
+  const [compsEstimateManualOff, setCompsEstimateManualOff] = useState(
+    () =>
+      deal.useCompsForResale === false &&
+      canUseCompsAsEstimate(deal.comps ?? [])
+  );
+
+  function handleCompsChange(nextComps: ComparableSale[]) {
+    const nextUse = resolveUseCompsForResale(
+      nextComps,
+      compsEstimateManualOff,
+      vm.useCompsForResale
+    );
+    onCompsChange(deal.id, nextComps, nextUse);
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="pr-6">{vm.input.itemName}</DialogTitle>
+        <DialogDescription>
+          {vm.input.category} · {vm.input.condition} · Saved{" "}
+          {formatDate(vm.updatedAt)}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(vm.display.verdictBadgeClassName)}
+          >
+            {vm.verdict.emoji} {vm.verdict.label}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            Ask {formatCurrency(vm.input.askingPrice)}
+          </span>
+        </div>
+
+        <ListingLinkPanel listing={vm.listing} />
+
+        <ComparableSalesPanel
+          comps={vm.comps}
+          useCompsForResale={vm.useCompsForResale}
+          persisted
+          dealCondition={vm.input.condition}
+          compsEstimateManualOff={compsEstimateManualOff}
+          onCompsEstimateManualOffChange={setCompsEstimateManualOff}
+          onCompsChange={handleCompsChange}
+          onUseCompsChange={(useCompsForResale) =>
+            onCompsChange(deal.id, vm.comps, useCompsForResale)
+          }
+        />
+
+        <ResaleEstimatePanel
+          estimate={vm.analysis.resaleEstimate}
+          warnings={vm.display.warnings}
+        />
+
+        <CategoryIntelligencePanel categoryIntel={vm.categoryIntel} />
+
+        <HaggleModePanel haggle={vm.haggle} askingPrice={vm.input.askingPrice} />
+        <AnalysisMetrics analysis={vm.analysis} />
+        <GoblinVerdict verdict={vm.verdict} />
+
+        {vm.input.notes && (
+          <p className="rounded-lg bg-background/60 p-3 text-xs text-muted-foreground">
+            {vm.input.notes}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function DealDetailDialog({
   deal,
   onClose,
   onCompsChange,
 }: DealDetailDialogProps) {
-  const vm = deal ? getDealViewModel(deal) : null;
-
   return (
     <Dialog open={!!deal} onOpenChange={(open) => !open && onClose()}>
-      {deal && vm && (
+      {deal && (
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="pr-6">{vm.input.itemName}</DialogTitle>
-            <DialogDescription>
-              {vm.input.category} · {vm.input.condition} · Saved{" "}
-              {formatDate(vm.updatedAt)}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="outline"
-                className={cn(vm.display.verdictBadgeClassName)}
-              >
-                {vm.verdict.emoji} {vm.verdict.label}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                Ask {formatCurrency(vm.input.askingPrice)}
-              </span>
-            </div>
-
-            <ListingLinkPanel listing={vm.listing} />
-
-            <ComparableSalesPanel
-              comps={vm.comps}
-              useCompsForResale={vm.useCompsForResale}
-              persisted
-              onCompsChange={(comps) =>
-                onCompsChange(deal.id, comps, vm.useCompsForResale)
-              }
-              onUseCompsChange={(useCompsForResale) =>
-                onCompsChange(deal.id, vm.comps, useCompsForResale)
-              }
-            />
-
-            <ResaleEstimatePanel
-              estimate={vm.analysis.resaleEstimate}
-              warnings={vm.display.warnings}
-            />
-
-            <CategoryIntelligencePanel categoryIntel={vm.categoryIntel} />
-
-            <HaggleModePanel
-              haggle={vm.haggle}
-              askingPrice={vm.input.askingPrice}
-            />
-            <AnalysisMetrics analysis={vm.analysis} />
-            <GoblinVerdict verdict={vm.verdict} />
-
-            {vm.input.notes && (
-              <p className="rounded-lg bg-background/60 p-3 text-xs text-muted-foreground">
-                {vm.input.notes}
-              </p>
-            )}
-          </div>
+          <DealDetailContent
+            key={deal.id}
+            deal={deal}
+            onCompsChange={onCompsChange}
+          />
         </DialogContent>
       )}
     </Dialog>

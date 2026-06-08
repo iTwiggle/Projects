@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookmarkPlus, RotateCcw } from "lucide-react";
+import { resolveUseCompsForResale } from "@/lib/analysis/comp-progress";
 import { analyzeWithBrainMode } from "@/lib/analysis/brain-modes";
 import { getPreviewViewModel } from "@/lib/deal-view-model";
 import type { PrefillableField } from "@/lib/intake/listing-parser";
+import {
+  clearAnalyzeDraft,
+  loadAnalyzeDraft,
+  saveAnalyzeDraft,
+} from "@/lib/storage/analyze-draft";
 import type { SaveDealOptions } from "@/lib/storage/deals";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +49,10 @@ export function DealAnalyzer({
   editingDeal,
   onClearEdit,
 }: DealAnalyzerProps) {
-  const [formInput, setFormInput] = useState<DealInput>(EMPTY_DEAL_INPUT);
+  const [analyzeDraft] = useState(() => loadAnalyzeDraft());
+  const [formInput, setFormInput] = useState(
+    () => analyzeDraft?.input ?? EMPTY_DEAL_INPUT
+  );
   const [touchedFields, setTouchedFields] = useState<Set<PrefillableField>>(
     new Set()
   );
@@ -55,15 +64,38 @@ export function DealAnalyzer({
   const [preview, setPreview] = useState<{
     input: DealInput;
     saved: boolean;
-  } | null>(null);
+  } | null>(() =>
+    analyzeDraft
+      ? { input: analyzeDraft.input, saved: false }
+      : null
+  );
   const [brainMode, setBrainMode] = useState<BrainModeId | null>(null);
-  const [comps, setComps] = useState<ComparableSale[]>([]);
-  const [useCompsForResale, setUseCompsForResale] = useState(false);
+  const [comps, setComps] = useState<ComparableSale[]>(
+    () => analyzeDraft?.comps ?? []
+  );
+  const [useCompsForResale, setUseCompsForResale] = useState(
+    () => analyzeDraft?.useCompsForResale ?? false
+  );
+  const [compsEstimateManualOff, setCompsEstimateManualOff] = useState(
+    () => analyzeDraft?.compsEstimateManualOff ?? false
+  );
 
   const analysisOptions = useMemo(
     () => ({ comps, useCompsForResale }),
     [comps, useCompsForResale]
   );
+
+  useEffect(() => {
+    if (!preview || preview.saved) return;
+
+    saveAnalyzeDraft({
+      input: preview.input,
+      comps,
+      useCompsForResale,
+      compsEstimateManualOff,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [preview, comps, useCompsForResale, compsEstimateManualOff]);
 
   function handleFieldTouched(field: PrefillableField) {
     setTouchedFields((prev) => new Set(prev).add(field));
@@ -86,13 +118,12 @@ export function DealAnalyzer({
   function handleAnalyze(input: DealInput) {
     setPreview({ input, saved: false });
     setBrainMode(null);
-    setComps([]);
-    setUseCompsForResale(false);
   }
 
   function handleSave() {
     if (!preview) return;
     onSave(preview.input, { comps, useCompsForResale });
+    clearAnalyzeDraft();
     setPreview({ ...preview, saved: true });
   }
 
@@ -101,6 +132,8 @@ export function DealAnalyzer({
     setBrainMode(null);
     setComps([]);
     setUseCompsForResale(false);
+    setCompsEstimateManualOff(false);
+    clearAnalyzeDraft();
   }
 
   function handleEditSubmit(input: DealInput) {
@@ -108,6 +141,13 @@ export function DealAnalyzer({
       onEdit(editingDeal.id, input);
       onClearEdit();
     }
+  }
+
+  function handleCompsChange(nextComps: ComparableSale[]) {
+    setComps(nextComps);
+    setUseCompsForResale((prev) =>
+      resolveUseCompsForResale(nextComps, compsEstimateManualOff, prev)
+    );
   }
 
   const previewViewModel = useMemo(() => {
@@ -186,7 +226,10 @@ export function DealAnalyzer({
             comps={comps}
             useCompsForResale={useCompsForResale}
             persisted={false}
-            onCompsChange={setComps}
+            dealCondition={preview.input.condition}
+            compsEstimateManualOff={compsEstimateManualOff}
+            onCompsEstimateManualOffChange={setCompsEstimateManualOff}
+            onCompsChange={handleCompsChange}
             onUseCompsChange={setUseCompsForResale}
           />
 

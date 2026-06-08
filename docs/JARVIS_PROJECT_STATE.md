@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Category Intelligence v1)
+Last updated: 2026-06-08 (Comp Estimate Accelerator v1)
 
 ## Product intent
 
@@ -12,53 +12,58 @@ Client-only flip assistant: appraise deals, build comps fast, negotiate, optiona
 - Screenshot/OCR intake, Listing URL autofill (CORS-only)
 - Manual Comparable Sales + comp-driven resale estimate
 - Smart Comp Builder v1 (paste comp text, batch parse, preview/import)
-- **Category Intelligence v1**
-  - Eight intelligence buckets: Electronics, Tools & Hardware, Vehicles, Furniture, Appliances, Collectibles, Clothing, Other
-  - Maps 12 `DealCategory` values into buckets (e.g. Home & Garden → Other)
-  - Keyword signals from item name, notes, and comp titles/notes
-  - Per category: hidden risks, value boosters, penalties, inspection checklist, resale speed notes, negotiation leverage
-  - Integrates with risk score, estimate confidence, verdict reasoning, display warnings/advice, Haggle Mode notes
-  - `CategoryIntelligencePanel` on Analyze preview and Deal Detail
+- Category Intelligence v1 (category-aware risks, checklist, haggle notes)
+- **Comp Estimate Accelerator v1**
+  - Estimate progress tiers: Rough → Market Informed → Strong → High Confidence
+  - Progress UI on Analyze + Deal Detail
+  - Auto-enable comps estimate at 3+ comps (unless user manually turns off)
+  - Quick comp entry (title, price, sold/listed; smart defaults)
+  - Bulk actions: mark all sold/listed, set platform for all
+  - Session memory for last comp platform
+  - localStorage draft for unsaved analyze comp work
+  - “Need X more comps” guidance
 - `getDealViewModel()` for derived UI
 
 ## Architecture summary
 
 ```
-DealInput + comps → buildCategoryIntelligence(haystack)
-  → signals + risk/confidence adjustments
-  → resolveDeal / analyzeDeal / getGoblinVerdict / calculateHaggleGuide
-  → getDealViewModel.display.warnings + categoryIntel panel
+Comps → getCompProgress() → CompProgressIndicator
+  → resolveUseCompsForResale() auto-toggle
+  → existing comp-calculations / resale-estimate (unchanged rules)
+Analyze draft → localStorage (comps + estimate toggle state)
+Comp platform → sessionStorage (last used)
 ```
 
 ## Data model summary
 
-**`CategoryIntelligence`** is derived at view-model time (not persisted). Cached `SavedDeal.analysis` / `verdict` refresh on save/load with category intel applied.
+**`AnalyzeDraft`** in localStorage (`marketplace-goblin-analyze-draft`) for unsaved preview comps. Saved deals unchanged.
 
 ## localStorage schema
 
-Unchanged: `SavedDeal` fields; category intel recomputed from stored inputs + comps.
+- `marketplace-goblin-deals` — saved deals (unchanged)
+- `marketplace-goblin-analyze-draft` — ephemeral analyze session (input, comps, toggle, manual-off flag)
 
 ## Key modules
 
 | Module | Role |
 |--------|------|
-| `category-intelligence.ts` | Profiles, signal detection, risk/confidence deltas |
-| `types/category-intelligence.ts` | `CategoryIntelligence`, signal types |
-| `category-intelligence-panel.tsx` | Mobile-first UI for signals, checklist, advice |
-| `deal-view-model.ts` | Wires intel into warnings, haggle, verdict path |
-| `comp-text-parser.ts` | Batch comp paste (unchanged) |
+| `comp-progress.ts` | Progress tiers, guidance, auto-enable resolver |
+| `comp-quick-entry.ts` | Minimal comp builder with defaults |
+| `comp-progress-indicator.tsx` | Progress step UI |
+| `comp-session.ts` | Last comp platform (session) |
+| `analyze-draft.ts` | Unsaved analyze comp persistence |
+| `comparable-sales-panel.tsx` | Quick comp, bulk actions, progress |
 
 ## Known risks / technical debt
 
-- Signal detection is deterministic keyword/regex — not semantic.
-- OCR/listing text only affects intel when captured in `notes` or comp fields.
-- Brain Mode uses same category intel as standard analysis; panel hidden during brain lens view.
+- Progress “High Confidence” tier (5+ sold) is UI guidance; comp-calculations confidence rules unchanged.
+- Analyze draft is single-slot (one unsaved session at a time).
+- Re-analyze keeps comps (no longer cleared) — user may need Reset for a fresh comp set.
 
 ## Recent changes
 
-- Category Intelligence v1 + 12 detection tests (65 total)
-- Risk score +0–3 from matched risks/penalties; confidence downgrade on severe flags
-- Haggle Mode shows category negotiation leverage notes
+- Comp Estimate Accelerator v1 + 14 new tests (79 total)
+- Comps no longer cleared on re-analyze; draft restores on refresh
 
 ## Verification
 
@@ -66,8 +71,8 @@ Unchanged: `SavedDeal` fields; category intel recomputed from stored inputs + co
 npm run test && npm run build && npm run lint
 ```
 
-Manual: Analyze an iPhone with notes `iCloud locked, cracked screen` → see Electronics risks, checklist, verdict lines, haggle leverage. Try Tools item with `Milwaukee Fuel, rust, no battery`.
+Manual: Quick-add 3 comps → auto-enable estimate → progress shows Strong → add 2 more sold → High Confidence.
 
 ## Recommended next step
 
-Persist optional `listingText` on deals for richer intel without stuffing notes, or category-specific comp paste hints.
+Sold-search deep links from item name, or export/share comps as text.
