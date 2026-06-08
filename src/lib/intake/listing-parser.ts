@@ -1,4 +1,7 @@
+import { getItemIdentityFromText } from "@/lib/analysis/item-identity";
 import type { DealCategory, DealCondition } from "@/lib/types/deal";
+import type { ItemIdentity } from "@/lib/types/item-identity";
+import { EMPTY_ITEM_IDENTITY } from "@/lib/types/item-identity";
 
 export interface ExtractedListingFields {
   itemName: string;
@@ -20,6 +23,7 @@ export interface ExtractionConfidence {
 export interface ParsedListingResult {
   fields: ExtractedListingFields;
   confidence: ExtractionConfidence;
+  identity: ItemIdentity;
 }
 
 export const DEFAULT_EXTRACTED: ExtractedListingFields = {
@@ -254,7 +258,11 @@ function buildNotes(lines: string[], title: string, priceLineIndexes: Set<number
 export function parseListingWithConfidence(text: string): ParsedListingResult {
   const trimmed = text.trim();
   if (!trimmed) {
-    return { fields: { ...DEFAULT_EXTRACTED }, confidence: { ...DEFAULT_CONFIDENCE } };
+    return {
+      fields: { ...DEFAULT_EXTRACTED },
+      confidence: { ...DEFAULT_CONFIDENCE },
+      identity: { ...EMPTY_ITEM_IDENTITY },
+    };
   }
 
   const lines = trimmed
@@ -288,6 +296,7 @@ export function parseListingWithConfidence(text: string): ParsedListingResult {
       condition: conditionResult.confidence,
       category: categoryResult.confidence,
     },
+    identity: getItemIdentityFromText(trimmed, categoryResult.category),
   };
 }
 

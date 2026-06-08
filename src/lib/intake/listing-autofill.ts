@@ -6,6 +6,7 @@ import {
 } from "@/lib/intake/listing-html-extract";
 import { fetchListingHtml } from "@/lib/intake/listing-url-fetch";
 import { normalizeListingUrl } from "@/lib/intake/listing-url";
+import { getItemIdentityFromText } from "@/lib/analysis/item-identity";
 import {
   parseListingWithConfidence,
   type ParsedListingResult,
@@ -57,7 +58,20 @@ function mergeHtmlDirectFields(
     confidence.category = confidence.category;
   }
 
-  return { fields, confidence };
+  const haystack = [
+    fields.itemName,
+    fields.notes,
+    htmlExtract.title ?? "",
+    htmlExtract.description ?? "",
+  ]
+    .join(" ")
+    .trim();
+
+  return {
+    fields,
+    confidence,
+    identity: getItemIdentityFromText(haystack, fields.category),
+  };
 }
 
 export async function attemptListingAutofill(

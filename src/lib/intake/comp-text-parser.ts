@@ -2,6 +2,7 @@ import {
   parseListingWithConfidence,
   type FieldConfidence,
 } from "@/lib/intake/listing-parser";
+import type { ItemIdentity } from "@/lib/types/item-identity";
 import type { CompListingType } from "@/lib/types/comps";
 import type { DealCondition } from "@/lib/types/deal";
 
@@ -22,6 +23,7 @@ export interface ParsedCompDraft {
   platform: string;
   listingType: CompListingType;
   confidence: ParsedCompConfidence;
+  detectedIdentity: ItemIdentity;
 }
 
 const SOLD_HINTS =
@@ -120,6 +122,7 @@ export function parseCompTextBlock(block: string): ParsedCompDraft | null {
       listingType: listingTypeResult.confidence,
       platform: platformResult.confidence,
     },
+    detectedIdentity: parsed.identity,
   };
 }
 

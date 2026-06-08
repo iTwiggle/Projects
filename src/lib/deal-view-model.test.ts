@@ -183,6 +183,18 @@ describe("getDealViewModel", () => {
     expect(preview.display.resaleSourceLabel).toBe("User comps");
   });
 
+  it("includes item identity in view model", () => {
+    const vm = getDealViewModel(
+      makeSavedDeal({
+        itemName: "Milwaukee M18 Fuel drill",
+        category: "Tools & Hardware",
+      })
+    );
+
+    expect(vm.itemIdentity.brand).toBe("Milwaukee");
+    expect(vm.itemIdentity.confidence).toMatch(/medium|high/);
+  });
+
   it("includes category intelligence in view model", () => {
     const vm = getDealViewModel(
       makeSavedDeal({

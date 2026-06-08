@@ -3,6 +3,10 @@ import {
   buildCategoryIntelligence,
 } from "@/lib/analysis/category-intelligence";
 import {
+  getItemIdentity,
+  upgradeEstimateConfidenceFromIdentity,
+} from "@/lib/analysis/item-identity";
+import {
   buildResaleEstimateFromComps,
   calculateCompSummary,
   canUseCompsAsEstimate,
@@ -111,7 +115,10 @@ function roundPrice(value: number): number {
   return Math.round(value / 10) * 10;
 }
 
-function scoreItemDetail(input: DealInput): number {
+function scoreItemDetail(
+  input: DealInput,
+  options?: AnalysisOptions
+): number {
   const name = input.itemName.toLowerCase();
   const notes = input.notes.toLowerCase();
   const haystack = `${name} ${notes}`;
@@ -124,6 +131,11 @@ function scoreItemDetail(input: DealInput): number {
   if (input.itemName.trim().split(/\s+/).length >= 4) score += 1;
   if (input.notes.trim().length >= 30) score += 1;
   if (COMP_HINT_PATTERN.test(input.notes)) score += 2;
+
+  const identity =
+    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+  if (identity.confidence === "high") score += 2;
+  else if (identity.confidence === "medium") score += 1;
 
   return score;
 }
@@ -158,14 +170,20 @@ function estimateFromSignals(
 ): ResaleEstimate {
   const categoryMultiplier = CATEGORY_RESALE_MULTIPLIER[input.category];
   const conditionFactor = CONDITION_RESALE_FACTOR[input.condition];
-  const detailScore = scoreItemDetail(input);
+  const itemIdentity =
+    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
+  const detailScore = scoreItemDetail(input, { ...options, itemIdentity });
   const categoryIntel =
     options?.categoryIntel ??
-    buildCategoryIntelligence(input, options?.comps);
+    buildCategoryIntelligence(input, options?.comps, itemIdentity);
   const baseConfidence = confidenceFromDetailScore(detailScore);
-  const confidence = applyConfidenceAdjustment(
+  const adjustedConfidence = applyConfidenceAdjustment(
     baseConfidence,
     categoryIntel.confidenceAdjustment
+  );
+  const confidence = upgradeEstimateConfidenceFromIdentity(
+    adjustedConfidence,
+    itemIdentity
   );
 
   const anchor =
@@ -210,9 +228,11 @@ export function buildResaleEstimate(
     };
   }
 
+  const itemIdentity =
+    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
   const categoryIntel =
     options?.categoryIntel ??
-    buildCategoryIntelligence(input, options?.comps);
+    buildCategoryIntelligence(input, options?.comps, itemIdentity);
 
   if (
     options?.useCompsForResale &&
@@ -222,20 +242,28 @@ export function buildResaleEstimate(
     const summary = calculateCompSummary(options.comps);
     if (summary) {
       const estimate = buildResaleEstimateFromComps(summary);
+      let confidence = estimate.confidence;
       if (categoryIntel.confidenceAdjustment !== "none") {
-        return {
-          ...estimate,
-          confidence: applyConfidenceAdjustment(
-            estimate.confidence,
-            categoryIntel.confidenceAdjustment
-          ),
-        };
+        confidence = applyConfidenceAdjustment(
+          confidence,
+          categoryIntel.confidenceAdjustment
+        );
       }
-      return estimate;
+      return {
+        ...estimate,
+        confidence: upgradeEstimateConfidenceFromIdentity(
+          confidence,
+          itemIdentity
+        ),
+      };
     }
   }
 
-  return estimateFromSignals(input, { ...options, categoryIntel });
+  return estimateFromSignals(input, {
+    ...options,
+    categoryIntel,
+    itemIdentity,
+  });
 }
 
 export function resolveDeal(

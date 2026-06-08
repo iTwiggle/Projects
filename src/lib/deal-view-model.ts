@@ -1,4 +1,5 @@
 import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
+import { getItemIdentity } from "@/lib/analysis/item-identity";
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { calculateCompSummary } from "@/lib/analysis/comp-calculations";
 import { calculateHaggleGuide } from "@/lib/analysis/haggle-calculations";
@@ -23,6 +24,7 @@ import type {
 import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
+import type { ItemIdentity } from "@/lib/types/item-identity";
 import type { HaggleGuide } from "@/lib/types/haggle";
 import { resolveListingLink } from "@/lib/intake/listing-url";
 import type { ListingLinkInfo } from "@/lib/types/listing-url";
@@ -71,6 +73,7 @@ export interface DealViewModel {
   haggle: HaggleGuide;
   listing: ListingLinkInfo;
   categoryIntel: DealViewModelCategoryIntel;
+  itemIdentity: ItemIdentity;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -162,11 +165,22 @@ function buildDealViewModel(
   useCompsForResale: boolean,
   meta: { id: string; createdAt: string; updatedAt: string }
 ): DealViewModel {
-  const categoryIntel = buildCategoryIntelligence(input, comps);
-  const analysisOptions = { comps, useCompsForResale, categoryIntel };
+  const itemIdentity = getItemIdentity(input, comps);
+  const categoryIntel = buildCategoryIntelligence(input, comps, itemIdentity);
+  const analysisOptions = {
+    comps,
+    useCompsForResale,
+    categoryIntel,
+    itemIdentity,
+  };
   const resolved = resolveDeal(input, analysisOptions);
   const analysis = analyzeDeal(input, analysisOptions);
-  const verdict = getGoblinVerdict(input, analysis, categoryIntel);
+  const verdict = getGoblinVerdict(
+    input,
+    analysis,
+    categoryIntel,
+    itemIdentity
+  );
   const compSummary = calculateCompSummary(comps);
   const display = buildDisplay(
     input,
@@ -202,6 +216,7 @@ function buildDealViewModel(
       intelligence: categoryIntel,
       inspectionChecklist: categoryIntel.inspectionChecklist,
     },
+    itemIdentity,
   };
 }
 

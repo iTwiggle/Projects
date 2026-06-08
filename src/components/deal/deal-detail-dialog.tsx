@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { CategoryIntelligencePanel } from "@/components/deal/category-intelligence-panel";
+import { ItemIdentityPanel } from "@/components/deal/item-identity-panel";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
@@ -100,7 +101,8 @@ function DealDetailContent({
           warnings={vm.display.warnings}
         />
 
-        <CategoryIntelligencePanel categoryIntel={vm.categoryIntel} />
+            <ItemIdentityPanel identity={vm.itemIdentity} />
+            <CategoryIntelligencePanel categoryIntel={vm.categoryIntel} />
 
         <HaggleModePanel haggle={vm.haggle} askingPrice={vm.input.askingPrice} />
         <AnalysisMetrics analysis={vm.analysis} />

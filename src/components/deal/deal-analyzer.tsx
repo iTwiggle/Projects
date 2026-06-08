@@ -23,6 +23,7 @@ import {
 import { DealForm } from "@/components/deal/deal-form";
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { CategoryIntelligencePanel } from "@/components/deal/category-intelligence-panel";
+import { ItemIdentityPanel } from "@/components/deal/item-identity-panel";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { GoblinBrainMode } from "@/components/deal/goblin-brain-mode";
@@ -239,9 +240,12 @@ export function DealAnalyzer({
           />
 
           {previewViewModel && !brainResult && (
-            <CategoryIntelligencePanel
-              categoryIntel={previewViewModel.categoryIntel}
-            />
+            <>
+              <ItemIdentityPanel identity={previewViewModel.itemIdentity} />
+              <CategoryIntelligencePanel
+                categoryIntel={previewViewModel.categoryIntel}
+              />
+            </>
           )}
 
           <GoblinBrainMode

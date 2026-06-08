@@ -1,5 +1,9 @@
 import type { ComparableSale } from "@/lib/types/comps";
 import type { DealCategory, DealInput } from "@/lib/types/deal";
+import {
+  buildIdentityCategoryBoosters,
+  buildIdentityHaggleNotes,
+} from "@/lib/analysis/item-identity";
 import type {
   CategoryIntelligence,
   CategorySignal,
@@ -7,6 +11,7 @@ import type {
   ConfidenceAdjustment,
   IntelligenceCategory,
 } from "@/lib/types/category-intelligence";
+import type { ItemIdentity } from "@/lib/types/item-identity";
 
 interface SignalDefinition {
   id: string;
@@ -694,7 +699,8 @@ export function getCategoryProfile(
 
 export function buildCategoryIntelligence(
   input: DealInput,
-  comps?: ComparableSale[]
+  comps?: ComparableSale[],
+  itemIdentity?: ItemIdentity
 ): CategoryIntelligence {
   const intelligenceCategory = DEAL_TO_INTELLIGENCE_CATEGORY[input.category];
   const profile = PROFILES[intelligenceCategory];
@@ -710,6 +716,17 @@ export function buildCategoryIntelligence(
   const matchedBoosters = matchedDefinitions
     .filter((signal) => signal.type === "booster")
     .map(toCategorySignal);
+
+  if (itemIdentity) {
+    for (const booster of buildIdentityCategoryBoosters(itemIdentity)) {
+      matchedBoosters.push({
+        id: `identity-${booster.label.toLowerCase().replace(/\s+/g, "-")}`,
+        label: booster.label,
+        type: "booster",
+        message: booster.message,
+      });
+    }
+  }
   const matchedPenalties = matchedDefinitions
     .filter((signal) => signal.type === "penalty")
     .map(toCategorySignal);
@@ -728,7 +745,10 @@ export function buildCategoryIntelligence(
     matchedPenalties,
     inspectionChecklist: buildChecklist(profile, matchedDefinitions),
     resaleSpeedNotes: buildResaleSpeedNotes(profile, matchedDefinitions),
-    negotiationLeverageNotes: buildNegotiationNotes(profile, matchedDefinitions),
+    negotiationLeverageNotes: [
+      ...buildNegotiationNotes(profile, matchedDefinitions),
+      ...(itemIdentity ? buildIdentityHaggleNotes(itemIdentity) : []),
+    ],
     advice: buildAdvice(
       intelligenceCategory,
       matchedRisks,

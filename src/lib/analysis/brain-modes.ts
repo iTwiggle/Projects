@@ -1,4 +1,8 @@
 import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
+import {
+  getIdentityRiskAdjustment,
+  getItemIdentity,
+} from "@/lib/analysis/item-identity";
 import { analyzeDeal, analyzeResolved } from "@/lib/analysis/engine";
 import {
   resolveDeal,
@@ -387,14 +391,19 @@ export function analyzeWithBrainMode(
   options?: AnalysisOptions
 ): BrainModeResult {
   const mode = BRAIN_MODES[modeId];
+  const itemIdentity =
+    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
   const categoryIntel =
     options?.categoryIntel ??
-    buildCategoryIntelligence(input, options?.comps);
-  const analysisOptions = { ...options, categoryIntel };
+    buildCategoryIntelligence(input, options?.comps, itemIdentity);
+  const analysisOptions = { ...options, categoryIntel, itemIdentity };
   const baseResolved = resolveDeal(input, analysisOptions);
   const baseAnalysis = analyzeDeal(input, analysisOptions);
   const { adjusted, adjustments } = transformResolved(modeId, baseResolved);
-  const rawAnalysis = analyzeResolved(adjusted, categoryIntel.riskAdjustment);
+  const rawAnalysis = analyzeResolved(
+    adjusted,
+    categoryIntel.riskAdjustment + getIdentityRiskAdjustment(itemIdentity)
+  );
   const analysis = tuneAnalysis(modeId, rawAnalysis, input);
   const verdict = getModeVerdict(mode, input, analysis, adjustments);
 

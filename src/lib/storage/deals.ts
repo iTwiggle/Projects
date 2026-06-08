@@ -1,5 +1,6 @@
 import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
 import { analyzeDeal } from "@/lib/analysis/engine";
+import { getItemIdentity } from "@/lib/analysis/item-identity";
 import { getGoblinVerdict } from "@/lib/analysis/verdict";
 import { getDealViewModel } from "@/lib/deal-view-model";
 import type { ComparableSale } from "@/lib/types/comps";
@@ -46,12 +47,23 @@ function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>
   const input = normalizeDealInput(raw);
   const comps = normalizeComps(raw.comps);
   const useCompsForResale = raw.useCompsForResale === true;
-  const categoryIntel = buildCategoryIntelligence(input, comps);
-  const analysisOptions = { comps, useCompsForResale, categoryIntel };
+  const itemIdentity = getItemIdentity(input, comps);
+  const categoryIntel = buildCategoryIntelligence(input, comps, itemIdentity);
+  const analysisOptions = {
+    comps,
+    useCompsForResale,
+    categoryIntel,
+    itemIdentity,
+  };
 
   // Refresh cached analysis/verdict from inputs on load; UI reads via getDealViewModel.
   const analysis = analyzeDeal(input, analysisOptions);
-  const verdict = getGoblinVerdict(input, analysis, categoryIntel);
+  const verdict = getGoblinVerdict(
+    input,
+    analysis,
+    categoryIntel,
+    itemIdentity
+  );
 
   return {
     ...input,
@@ -95,10 +107,25 @@ export function createDeal(
   const normalized = normalizeDealInput(input);
   const comps = options?.comps ?? [];
   const useCompsForResale = options?.useCompsForResale ?? false;
-  const categoryIntel = buildCategoryIntelligence(normalized, comps);
-  const analysisOptions = { comps, useCompsForResale, categoryIntel };
+  const itemIdentity = getItemIdentity(normalized, comps);
+  const categoryIntel = buildCategoryIntelligence(
+    normalized,
+    comps,
+    itemIdentity
+  );
+  const analysisOptions = {
+    comps,
+    useCompsForResale,
+    categoryIntel,
+    itemIdentity,
+  };
   const analysis = analyzeDeal(normalized, analysisOptions);
-  const verdict = getGoblinVerdict(normalized, analysis, categoryIntel);
+  const verdict = getGoblinVerdict(
+    normalized,
+    analysis,
+    categoryIntel,
+    itemIdentity
+  );
   const now = new Date().toISOString();
 
   return {
@@ -122,14 +149,25 @@ export function updateDeal(
     if (deal.id !== id) return deal;
 
     const normalized = normalizeDealInput(input);
-    const categoryIntel = buildCategoryIntelligence(normalized, deal.comps);
+    const itemIdentity = getItemIdentity(normalized, deal.comps);
+    const categoryIntel = buildCategoryIntelligence(
+      normalized,
+      deal.comps,
+      itemIdentity
+    );
     const analysisOptions = {
       comps: deal.comps,
       useCompsForResale: deal.useCompsForResale,
       categoryIntel,
+      itemIdentity,
     };
     const analysis = analyzeDeal(normalized, analysisOptions);
-    const verdict = getGoblinVerdict(normalized, analysis, categoryIntel);
+    const verdict = getGoblinVerdict(
+      normalized,
+      analysis,
+      categoryIntel,
+      itemIdentity
+    );
 
     return {
       ...normalized,
@@ -153,10 +191,21 @@ export function updateDealComps(
   return deals.map((deal) => {
     if (deal.id !== id) return deal;
 
-    const categoryIntel = buildCategoryIntelligence(deal, comps);
-    const analysisOptions = { comps, useCompsForResale, categoryIntel };
+    const itemIdentity = getItemIdentity(deal, comps);
+    const categoryIntel = buildCategoryIntelligence(deal, comps, itemIdentity);
+    const analysisOptions = {
+      comps,
+      useCompsForResale,
+      categoryIntel,
+      itemIdentity,
+    };
     const analysis = analyzeDeal(deal, analysisOptions);
-    const verdict = getGoblinVerdict(deal, analysis, categoryIntel);
+    const verdict = getGoblinVerdict(
+      deal,
+      analysis,
+      categoryIntel,
+      itemIdentity
+    );
 
     return {
       ...deal,

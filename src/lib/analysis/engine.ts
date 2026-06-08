@@ -1,4 +1,8 @@
 import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
+import {
+  getIdentityRiskAdjustment,
+  getItemIdentity,
+} from "@/lib/analysis/item-identity";
 import { resolveDeal } from "@/lib/analysis/resale-estimate";
 import type {
   DealAnalysis,
@@ -210,12 +214,21 @@ export function analyzeDeal(
   input: DealInput,
   options?: AnalysisOptions
 ): DealAnalysis {
+  const itemIdentity =
+    options?.itemIdentity ?? getItemIdentity(input, options?.comps);
   const categoryIntel =
     options?.categoryIntel ??
-    buildCategoryIntelligence(input, options?.comps);
-  const resolved = resolveDeal(input, { ...options, categoryIntel });
+    buildCategoryIntelligence(input, options?.comps, itemIdentity);
+  const resolved = resolveDeal(input, {
+    ...options,
+    categoryIntel,
+    itemIdentity,
+  });
 
-  return analyzeResolved(resolved, categoryIntel.riskAdjustment);
+  return analyzeResolved(
+    resolved,
+    categoryIntel.riskAdjustment + getIdentityRiskAdjustment(itemIdentity)
+  );
 }
 
 /** @deprecated Use effectiveResaleValue from resolveDeal() */
