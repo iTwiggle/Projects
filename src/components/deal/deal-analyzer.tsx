@@ -31,6 +31,7 @@ import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { ScreenshotIntake } from "@/components/deal/screenshot-intake";
 import { ListingUrlIntake } from "@/components/deal/listing-url-intake";
+import { ListingExtensionIntake } from "@/components/deal/listing-extension-intake";
 import { PrefillConfirmDialog } from "@/components/deal/prefill-confirm-dialog";
 import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 import type { BrainModeId } from "@/lib/types/brain-mode";
@@ -190,6 +191,11 @@ export function DealAnalyzer({
       />
 
       <ScreenshotIntake
+        onRequestFill={handleRequestFill}
+        onIdentitySourcesChange={setIdentitySources}
+      />
+
+      <ListingExtensionIntake
         onRequestFill={handleRequestFill}
         onIdentitySourcesChange={setIdentitySources}
       />
