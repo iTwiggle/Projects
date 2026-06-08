@@ -1,8 +1,10 @@
+import { resolveDeal } from "@/lib/analysis/resale-estimate";
 import type {
   DealAnalysis,
   DealCategory,
   DealCondition,
   DealInput,
+  ResolvedDeal,
 } from "@/lib/types/deal";
 
 const CONDITION_RISK: Record<DealCondition, number> = {
@@ -87,21 +89,28 @@ function formatTimeToSell(days: number): string {
   return "3+ months";
 }
 
-export function calculatePotentialProfit(input: DealInput): number {
-  return input.estimatedResaleValue - input.askingPrice;
+function calculatePotentialProfit(
+  askingPrice: number,
+  effectiveResaleValue: number
+): number {
+  return effectiveResaleValue - askingPrice;
 }
 
-export function calculateRoiPercent(input: DealInput): number {
-  if (input.askingPrice <= 0) {
-    return input.estimatedResaleValue > 0 ? 100 : 0;
+function calculateRoiPercent(
+  askingPrice: number,
+  effectiveResaleValue: number
+): number {
+  if (askingPrice <= 0) {
+    return effectiveResaleValue > 0 ? 100 : 0;
   }
-  const profit = calculatePotentialProfit(input);
-  return (profit / input.askingPrice) * 100;
+  const profit = calculatePotentialProfit(askingPrice, effectiveResaleValue);
+  return (profit / askingPrice) * 100;
 }
 
-export function calculateRiskScore(input: DealInput): number {
-  const profit = calculatePotentialProfit(input);
-  const roi = calculateRoiPercent(input);
+function calculateRiskScore(resolved: ResolvedDeal): number {
+  const { input, effectiveResaleValue, resaleEstimate } = resolved;
+  const profit = calculatePotentialProfit(input.askingPrice, effectiveResaleValue);
+  const roi = calculateRoiPercent(input.askingPrice, effectiveResaleValue);
 
   if (profit <= 0) return 10;
 
@@ -118,12 +127,18 @@ export function calculateRiskScore(input: DealInput): number {
   if (profit < 25) risk += 1.5;
   if (profit < 10) risk += 1;
 
+  if (resaleEstimate.source === "estimated") {
+    if (resaleEstimate.confidence === "low") risk += 1;
+    else if (resaleEstimate.confidence === "medium") risk += 0.5;
+  }
+
   return clamp(Math.round(risk), 1, 10);
 }
 
-export function calculateFlipScore(input: DealInput): number {
-  const profit = calculatePotentialProfit(input);
-  const roi = calculateRoiPercent(input);
+function calculateFlipScore(resolved: ResolvedDeal): number {
+  const { input, effectiveResaleValue } = resolved;
+  const profit = calculatePotentialProfit(input.askingPrice, effectiveResaleValue);
+  const roi = calculateRoiPercent(input.askingPrice, effectiveResaleValue);
 
   if (profit <= 0) return 1;
 
@@ -145,7 +160,8 @@ export function calculateFlipScore(input: DealInput): number {
   return clamp(Math.round(score), 1, 10);
 }
 
-export function calculateTimeToSellDays(input: DealInput): number {
+function calculateTimeToSellDays(resolved: ResolvedDeal): number {
+  const { input, effectiveResaleValue } = resolved;
   const base = CATEGORY_BASE_DAYS[input.category];
   const conditionMultiplier = CONDITION_TIME_MULTIPLIER[input.condition];
 
@@ -154,21 +170,36 @@ export function calculateTimeToSellDays(input: DealInput): number {
   if (input.askingPrice > 500) days *= 1.2;
   if (input.askingPrice > 1000) days *= 1.15;
 
-  const profit = calculatePotentialProfit(input);
+  const profit = calculatePotentialProfit(input.askingPrice, effectiveResaleValue);
   if (profit > 100) days *= 0.9;
 
   return Math.round(days);
 }
 
-export function analyzeDeal(input: DealInput): DealAnalysis {
-  const timeToSellDays = calculateTimeToSellDays(input);
+export function analyzeResolved(resolved: ResolvedDeal): DealAnalysis {
+  const { input, effectiveResaleValue, resaleEstimate } = resolved;
+  const timeToSellDays = calculateTimeToSellDays(resolved);
 
   return {
-    potentialProfit: calculatePotentialProfit(input),
-    roiPercent: calculateRoiPercent(input),
-    riskScore: calculateRiskScore(input),
-    flipScore: calculateFlipScore(input),
+    potentialProfit: calculatePotentialProfit(
+      input.askingPrice,
+      effectiveResaleValue
+    ),
+    roiPercent: calculateRoiPercent(input.askingPrice, effectiveResaleValue),
+    riskScore: calculateRiskScore(resolved),
+    flipScore: calculateFlipScore(resolved),
     timeToSellDays,
     timeToSellLabel: formatTimeToSell(timeToSellDays),
+    resaleEstimate,
   };
+}
+
+export function analyzeDeal(input: DealInput): DealAnalysis {
+  return analyzeResolved(resolveDeal(input));
+}
+
+/** @deprecated Use effectiveResaleValue from resolveDeal() */
+export function calculatePotentialProfitFromInput(input: DealInput): number {
+  const resolved = resolveDeal(input);
+  return resolved.effectiveResaleValue - input.askingPrice;
 }

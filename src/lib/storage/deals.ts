@@ -1,6 +1,13 @@
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { getGoblinVerdict } from "@/lib/analysis/verdict";
-import type { DashboardStats, DealInput, SavedDeal } from "@/lib/types/deal";
+import type {
+  DashboardStats,
+  DealAnalysis,
+  DealInput,
+  LegacyDealFields,
+  SavedDeal,
+} from "@/lib/types/deal";
+import { normalizeDealInput } from "@/lib/types/deal";
 
 const STORAGE_KEY = "marketplace-goblin-deals";
 
@@ -8,17 +15,43 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function isValidSavedDeal(value: unknown): value is SavedDeal {
+function isValidAnalysis(value: unknown): value is DealAnalysis {
   if (!value || typeof value !== "object") return false;
-  const deal = value as SavedDeal;
+  const analysis = value as DealAnalysis;
   return (
-    typeof deal.id === "string" &&
-    typeof deal.itemName === "string" &&
-    typeof deal.askingPrice === "number" &&
-    typeof deal.estimatedResaleValue === "number" &&
-    deal.analysis !== undefined &&
-    deal.verdict !== undefined
+    typeof analysis.potentialProfit === "number" &&
+    typeof analysis.roiPercent === "number" &&
+    typeof analysis.riskScore === "number" &&
+    typeof analysis.flipScore === "number"
   );
+}
+
+function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>): SavedDeal | null {
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.itemName !== "string" ||
+    typeof raw.askingPrice !== "number" ||
+    !isValidAnalysis(raw.analysis) ||
+    !raw.verdict
+  ) {
+    return null;
+  }
+
+  const input = normalizeDealInput(raw);
+  const analysis =
+    raw.analysis?.resaleEstimate !== undefined
+      ? raw.analysis
+      : analyzeDeal(input);
+  const verdict = raw.verdict ?? getGoblinVerdict(input, analysis);
+
+  return {
+    ...input,
+    id: raw.id,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    updatedAt: raw.updatedAt ?? new Date().toISOString(),
+    analysis,
+    verdict,
+  };
 }
 
 export function loadDeals(): SavedDeal[] {
@@ -31,7 +64,9 @@ export function loadDeals(): SavedDeal[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.filter(isValidSavedDeal);
+    return parsed
+      .map((deal) => migrateSavedDeal(deal as DealInput & LegacyDealFields & Partial<SavedDeal>))
+      .filter((deal): deal is SavedDeal => deal !== null);
   } catch {
     return [];
   }
@@ -43,12 +78,13 @@ export function saveDeals(deals: SavedDeal[]): void {
 }
 
 export function createDeal(input: DealInput): SavedDeal {
-  const analysis = analyzeDeal(input);
-  const verdict = getGoblinVerdict(input, analysis);
+  const normalized = normalizeDealInput(input);
+  const analysis = analyzeDeal(normalized);
+  const verdict = getGoblinVerdict(normalized, analysis);
   const now = new Date().toISOString();
 
   return {
-    ...input,
+    ...normalized,
     id: generateId(),
     createdAt: now,
     updatedAt: now,
@@ -62,13 +98,14 @@ export function updateDeal(
   id: string,
   input: DealInput
 ): SavedDeal[] {
-  const analysis = analyzeDeal(input);
-  const verdict = getGoblinVerdict(input, analysis);
+  const normalized = normalizeDealInput(input);
+  const analysis = analyzeDeal(normalized);
+  const verdict = getGoblinVerdict(normalized, analysis);
 
   return deals.map((deal) =>
     deal.id === id
       ? {
-          ...input,
+          ...normalized,
           id: deal.id,
           createdAt: deal.createdAt,
           updatedAt: new Date().toISOString(),

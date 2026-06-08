@@ -17,6 +17,7 @@ import { DealForm } from "@/components/deal/deal-form";
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { GoblinBrainMode } from "@/components/deal/goblin-brain-mode";
+import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import type { BrainModeId } from "@/lib/types/brain-mode";
 import type { DealInput, SavedDeal } from "@/lib/types/deal";
 
@@ -102,6 +103,8 @@ export function DealAnalyzer({
               Clear
             </Button>
           </div>
+
+          <ResaleEstimatePanel estimate={displayAnalysis.resaleEstimate} />
 
           <GoblinBrainMode
             activeMode={brainMode}

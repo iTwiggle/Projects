@@ -1,5 +1,9 @@
-import { analyzeDeal } from "@/lib/analysis/engine";
-import type { DealAnalysis, DealInput, GoblinVerdict } from "@/lib/types/deal";
+import { analyzeDeal, analyzeResolved } from "@/lib/analysis/engine";
+import {
+  resolveDeal,
+  withEffectiveResale,
+} from "@/lib/analysis/resale-estimate";
+import type { DealAnalysis, DealInput, GoblinVerdict, ResolvedDeal } from "@/lib/types/deal";
 import {
   BRAIN_MODES,
   type BrainModeDefinition,
@@ -49,38 +53,37 @@ function hasOpportunitySignals(input: DealInput): boolean {
   return HIDDEN_OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword));
 }
 
-function applyMoreProfitable(input: DealInput): {
-  adjusted: DealInput;
+function applyMoreProfitable(resolved: ResolvedDeal): {
+  adjusted: ResolvedDeal;
   adjustments: string[];
 } {
-  const negotiatedAsk = Math.round(input.askingPrice * 0.88);
-  const premiumResale = Math.round(input.estimatedResaleValue * 1.12);
+  const negotiatedAsk = Math.round(resolved.input.askingPrice * 0.88);
+  const premiumResale = Math.round(resolved.effectiveResaleValue * 1.12);
 
   return {
-    adjusted: {
-      ...input,
-      askingPrice: negotiatedAsk,
-      estimatedResaleValue: premiumResale,
-    },
+    adjusted: withEffectiveResale(
+      {
+        ...resolved,
+        input: { ...resolved.input, askingPrice: negotiatedAsk },
+      },
+      premiumResale
+    ),
     adjustments: [
-      `Assumes ${((1 - negotiatedAsk / Math.max(input.askingPrice, 1)) * 100).toFixed(0)}% off asking after haggling.`,
+      `Assumes ${((1 - negotiatedAsk / Math.max(resolved.input.askingPrice, 1)) * 100).toFixed(0)}% off asking after haggling.`,
       "Prices for premium channels — eBay, niche forums, collector groups.",
       "Willing to hold longer for top dollar.",
     ],
   };
 }
 
-function applyFasterFlip(input: DealInput): {
-  adjusted: DealInput;
+function applyFasterFlip(resolved: ResolvedDeal): {
+  adjusted: ResolvedDeal;
   adjustments: string[];
 } {
-  const quickSaleResale = Math.round(input.estimatedResaleValue * 0.82);
+  const quickSaleResale = Math.round(resolved.effectiveResaleValue * 0.82);
 
   return {
-    adjusted: {
-      ...input,
-      estimatedResaleValue: quickSaleResale,
-    },
+    adjusted: withEffectiveResale(resolved, quickSaleResale),
     adjustments: [
       "Prices to move in days, not weeks — local pickup, same-day cash.",
       "Accepts lower margin for zero holding cost.",
@@ -89,26 +92,31 @@ function applyFasterFlip(input: DealInput): {
   };
 }
 
-function applyPartOut(input: DealInput): {
-  adjusted: DealInput;
+function applyPartOut(resolved: ResolvedDeal): {
+  adjusted: ResolvedDeal;
   adjustments: string[];
 } {
-  const multiplier = PART_OUT_MULTIPLIERS[input.category] ?? 1.08;
-  const partsResale = Math.round(input.estimatedResaleValue * multiplier);
-  const laborCost = Math.round(input.askingPrice * 0.05 + 25);
+  const multiplier = PART_OUT_MULTIPLIERS[resolved.input.category] ?? 1.08;
+  const partsResale = Math.round(resolved.effectiveResaleValue * multiplier);
+  const laborCost = Math.round(resolved.input.askingPrice * 0.05 + 25);
 
   return {
-    adjusted: {
-      ...input,
-      estimatedResaleValue: partsResale,
-      askingPrice: input.askingPrice + laborCost,
-      notes: input.notes
-        ? `${input.notes} [Part-out: teardown, list, ship labor factored in]`
-        : "[Part-out: teardown, list, ship labor factored in]",
-    },
+    adjusted: withEffectiveResale(
+      {
+        ...resolved,
+        input: {
+          ...resolved.input,
+          askingPrice: resolved.input.askingPrice + laborCost,
+          notes: resolved.input.notes
+            ? `${resolved.input.notes} [Part-out: teardown, list, ship labor factored in]`
+            : "[Part-out: teardown, list, ship labor factored in]",
+        },
+      },
+      partsResale
+    ),
     adjustments: [
       multiplier >= 1.25
-        ? `${input.category} has strong part-out demand — motors, boards, and accessories sell separately.`
+        ? `${resolved.input.category} has strong part-out demand — motors, boards, and accessories sell separately.`
         : "Limited part-out upside for this category — whole-item sale may be better.",
       `Adds ~$${laborCost} labor cost for teardown, photos, and multi-listing.`,
       "Timeline stretches — but total haul can beat a single flip.",
@@ -116,19 +124,24 @@ function applyPartOut(input: DealInput): {
   };
 }
 
-function applyWorstCase(input: DealInput): {
-  adjusted: DealInput;
+function applyWorstCase(resolved: ResolvedDeal): {
+  adjusted: ResolvedDeal;
   adjustments: string[];
 } {
-  const pessimisticResale = Math.round(input.estimatedResaleValue * 0.72);
-  const surpriseCosts = Math.round(input.askingPrice * 0.08 + 15);
+  const pessimisticResale = Math.round(resolved.effectiveResaleValue * 0.72);
+  const surpriseCosts = Math.round(resolved.input.askingPrice * 0.08 + 15);
 
   return {
-    adjusted: {
-      ...input,
-      askingPrice: input.askingPrice + surpriseCosts,
-      estimatedResaleValue: pessimisticResale,
-    },
+    adjusted: withEffectiveResale(
+      {
+        ...resolved,
+        input: {
+          ...resolved.input,
+          askingPrice: resolved.input.askingPrice + surpriseCosts,
+        },
+      },
+      pessimisticResale
+    ),
     adjustments: [
       "Comps priced at the low end — slow market, bad photos, wrong season.",
       `Adds $${surpriseCosts} for gas, platform fees, and buyer flaking.`,
@@ -137,22 +150,24 @@ function applyWorstCase(input: DealInput): {
   };
 }
 
-function applyHiddenOpportunity(input: DealInput): {
-  adjusted: DealInput;
+function applyHiddenOpportunity(resolved: ResolvedDeal): {
+  adjusted: ResolvedDeal;
   adjustments: string[];
 } {
-  const signals = hasOpportunitySignals(input);
+  const signals = hasOpportunitySignals(resolved.input);
   const nicheBoost = signals ? 1.22 : 1.14;
   const motivatedDiscount = signals
-    ? Math.round(input.askingPrice * 0.92)
-    : input.askingPrice;
+    ? Math.round(resolved.input.askingPrice * 0.92)
+    : resolved.input.askingPrice;
 
   return {
-    adjusted: {
-      ...input,
-      askingPrice: motivatedDiscount,
-      estimatedResaleValue: Math.round(input.estimatedResaleValue * nicheBoost),
-    },
+    adjusted: withEffectiveResale(
+      {
+        ...resolved,
+        input: { ...resolved.input, askingPrice: motivatedDiscount },
+      },
+      Math.round(resolved.effectiveResaleValue * nicheBoost)
+    ),
     adjustments: signals
       ? [
           "Seller signals detected — motivated to deal, room to negotiate.",
@@ -167,21 +182,21 @@ function applyHiddenOpportunity(input: DealInput): {
   };
 }
 
-function transformInput(
+function transformResolved(
   modeId: BrainModeId,
-  input: DealInput
-): { adjusted: DealInput; adjustments: string[] } {
+  resolved: ResolvedDeal
+): { adjusted: ResolvedDeal; adjustments: string[] } {
   switch (modeId) {
     case "more_profitable":
-      return applyMoreProfitable(input);
+      return applyMoreProfitable(resolved);
     case "faster_flip":
-      return applyFasterFlip(input);
+      return applyFasterFlip(resolved);
     case "part_out":
-      return applyPartOut(input);
+      return applyPartOut(resolved);
     case "worst_case":
-      return applyWorstCase(input);
+      return applyWorstCase(resolved);
     case "hidden_opportunity":
-      return applyHiddenOpportunity(input);
+      return applyHiddenOpportunity(resolved);
   }
 }
 
@@ -190,7 +205,7 @@ function tuneAnalysis(
   base: DealAnalysis,
   input: DealInput
 ): DealAnalysis {
-  const analysis = { ...base };
+  const analysis = { ...base, resaleEstimate: { ...base.resaleEstimate } };
 
   switch (modeId) {
     case "more_profitable":
@@ -249,6 +264,10 @@ function getModeVerdict(
     roiPercent >= 25;
 
   const perspective: string[] = [];
+
+  if (analysis.resaleEstimate.source === "estimated") {
+    perspective.push("Using goblin rough estimate as resale baseline.");
+  }
 
   switch (mode.id) {
     case "more_profitable":
@@ -365,15 +384,16 @@ export function analyzeWithBrainMode(
   modeId: BrainModeId
 ): BrainModeResult {
   const mode = BRAIN_MODES[modeId];
+  const baseResolved = resolveDeal(input);
   const baseAnalysis = analyzeDeal(input);
-  const { adjusted, adjustments } = transformInput(modeId, input);
-  const rawAnalysis = analyzeDeal(adjusted);
+  const { adjusted, adjustments } = transformResolved(modeId, baseResolved);
+  const rawAnalysis = analyzeResolved(adjusted);
   const analysis = tuneAnalysis(modeId, rawAnalysis, input);
   const verdict = getModeVerdict(mode, input, analysis, adjustments);
 
   return {
     mode,
-    adjustedInput: adjusted,
+    adjustedInput: adjusted.input,
     analysis,
     verdict,
     perspective: buildPerspective(mode, baseAnalysis, analysis),

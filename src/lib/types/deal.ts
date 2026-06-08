@@ -26,13 +26,31 @@ export type DealCondition = (typeof DEAL_CONDITIONS)[number];
 
 export type VerdictType = "approved" | "caution" | "reject";
 
+export type ResaleSource = "manual" | "estimated";
+export type EstimateConfidence = "low" | "medium" | "high";
+
+export interface ResaleEstimate {
+  low: number;
+  midpoint: number;
+  high: number;
+  source: ResaleSource;
+  confidence: EstimateConfidence;
+}
+
 export interface DealInput {
   itemName: string;
   category: DealCategory;
   askingPrice: number;
   condition: DealCondition;
-  estimatedResaleValue: number;
+  /** User-entered resale value. Null = use goblin quick estimate. */
+  knownResaleValue: number | null;
   notes: string;
+}
+
+export interface ResolvedDeal {
+  input: DealInput;
+  resaleEstimate: ResaleEstimate;
+  effectiveResaleValue: number;
 }
 
 export interface DealAnalysis {
@@ -42,6 +60,7 @@ export interface DealAnalysis {
   flipScore: number;
   timeToSellDays: number;
   timeToSellLabel: string;
+  resaleEstimate: ResaleEstimate;
 }
 
 export interface GoblinVerdict {
@@ -71,6 +90,35 @@ export const EMPTY_DEAL_INPUT: DealInput = {
   category: "Electronics",
   askingPrice: 0,
   condition: "Good",
-  estimatedResaleValue: 0,
+  knownResaleValue: null,
   notes: "",
 };
+
+/** @deprecated Legacy field — use normalizeDealInput() when loading. */
+export interface LegacyDealFields {
+  estimatedResaleValue?: number;
+}
+
+export function hasManualResaleValue(input: DealInput): boolean {
+  return input.knownResaleValue !== null;
+}
+
+export function normalizeDealInput(
+  raw: DealInput & LegacyDealFields
+): DealInput {
+  if ("knownResaleValue" in raw && raw.knownResaleValue !== undefined) {
+    const { estimatedResaleValue: _legacy, ...rest } = raw;
+    void _legacy;
+    return rest as DealInput;
+  }
+
+  const legacy = raw.estimatedResaleValue;
+  const { estimatedResaleValue: _legacy, ...rest } = raw;
+  void _legacy;
+
+  return {
+    ...(rest as Omit<DealInput, "knownResaleValue">),
+    knownResaleValue:
+      typeof legacy === "number" && legacy > 0 ? legacy : null,
+  };
+}

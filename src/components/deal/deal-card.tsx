@@ -15,6 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  getConfidenceLabel,
+  getResaleSourceLabel,
+} from "@/lib/analysis/resale-estimate";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import type { SavedDeal } from "@/lib/types/deal";
 import { cn } from "@/lib/utils";
@@ -31,8 +35,22 @@ const verdictBadgeStyles = {
   reject: "bg-rose-500/15 text-rose-400 border-rose-500/30",
 };
 
+const confidenceStyles = {
+  low: "text-rose-400",
+  medium: "text-amber-400",
+  high: "text-emerald-400",
+};
+
 export function DealCard({ deal, onEdit, onDelete }: DealCardProps) {
   const profitPositive = deal.analysis.potentialProfit >= 0;
+  const estimate = deal.analysis.resaleEstimate;
+  const isEstimated = estimate?.source === "estimated";
+
+  const resaleDisplay = estimate
+    ? isEstimated && estimate.low !== estimate.high
+      ? `${formatCurrency(estimate.low)}–${formatCurrency(estimate.high)}`
+      : formatCurrency(estimate.midpoint)
+    : formatCurrency(deal.knownResaleValue ?? 0);
 
   return (
     <Card className="border-border/50 bg-card/60">
@@ -51,6 +69,22 @@ export function DealCard({ deal, onEdit, onDelete }: DealCardProps) {
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
+        {estimate && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="text-[10px]">
+              {getResaleSourceLabel(estimate.source)}
+            </Badge>
+            <span
+              className={cn(
+                "text-[10px]",
+                confidenceStyles[estimate.confidence]
+              )}
+            >
+              {getConfidenceLabel(estimate.confidence)}
+            </span>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-2 text-center text-sm">
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Ask</p>
@@ -58,9 +92,7 @@ export function DealCard({ deal, onEdit, onDelete }: DealCardProps) {
           </div>
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Resale</p>
-            <p className="font-medium">
-              {formatCurrency(deal.estimatedResaleValue)}
-            </p>
+            <p className="font-medium">{resaleDisplay}</p>
           </div>
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Profit</p>

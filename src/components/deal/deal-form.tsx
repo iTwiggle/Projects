@@ -65,8 +65,8 @@ export function DealForm({
           Evaluate a Deal
         </CardTitle>
         <CardDescription>
-          Enter listing details from Facebook Marketplace, Craigslist, OfferUp,
-          or anywhere you hunt.
+          Spot a listing? Enter what you know — the goblin estimates resale if
+          you don&apos;t have comps yet.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -143,21 +143,27 @@ export function DealForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="resaleValue">Estimated Resale Value ($)</Label>
+              <Label htmlFor="knownResaleValue">
+                Optional Known Resale Value ($)
+              </Label>
               <Input
-                id="resaleValue"
+                id="knownResaleValue"
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="0"
-                value={form.estimatedResaleValue || ""}
-                onChange={(e) =>
+                placeholder="Leave blank for estimate"
+                value={form.knownResaleValue ?? ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
                   updateField(
-                    "estimatedResaleValue",
-                    parseFloat(e.target.value) || 0
-                  )
-                }
+                    "knownResaleValue",
+                    raw === "" ? null : parseFloat(raw) || 0
+                  );
+                }}
               />
+              <p className="text-xs text-muted-foreground">
+                Leave blank for a rough goblin estimate.
+              </p>
             </div>
           </div>
 
@@ -165,7 +171,7 @@ export function DealForm({
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
-              placeholder="Seller motivation, defects, comparable sold prices, pickup distance..."
+              placeholder="Brand, model, defects, seller motivation — more detail = better estimate"
               rows={3}
               value={form.notes}
               onChange={(e) => updateField("notes", e.target.value)}

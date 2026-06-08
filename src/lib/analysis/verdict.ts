@@ -1,5 +1,10 @@
 import type { DealAnalysis, DealInput, GoblinVerdict } from "@/lib/types/deal";
 
+function estimateDisclaimer(analysis: DealAnalysis): string | null {
+  if (analysis.resaleEstimate.source !== "estimated") return null;
+  return "Based on a fast rough estimate — verify sold comps before buying.";
+}
+
 function buildApprovedReasoning(
   input: DealInput,
   analysis: DealAnalysis
@@ -24,9 +29,10 @@ function buildApprovedReasoning(
     );
   }
 
-  reasons.push(
-    `Estimated time to sell: ${analysis.timeToSellLabel}.`
-  );
+  reasons.push(`Estimated time to sell: ${analysis.timeToSellLabel}.`);
+
+  const disclaimer = estimateDisclaimer(analysis);
+  if (disclaimer) reasons.push(disclaimer);
 
   return reasons;
 }
@@ -73,6 +79,15 @@ function buildCautionReasoning(
     );
   }
 
+  if (analysis.resaleEstimate.confidence === "low") {
+    reasons.push(
+      "Low estimate confidence — add brand/model details or check comps yourself."
+    );
+  }
+
+  const disclaimer = estimateDisclaimer(analysis);
+  if (disclaimer) reasons.push(disclaimer);
+
   if (reasons.length === 0) {
     reasons.push(
       "Mixed signals on this deal — worth a closer look but not a slam dunk."
@@ -90,7 +105,7 @@ function buildRejectReasoning(
 
   if (analysis.potentialProfit <= 0) {
     reasons.push(
-      input.estimatedResaleValue < input.askingPrice
+      analysis.resaleEstimate.midpoint < input.askingPrice
         ? `You'd lose $${Math.abs(analysis.potentialProfit).toFixed(0)} on this flip.`
         : "No profit margin — you're paying market rate or above."
     );
@@ -120,10 +135,11 @@ function buildRejectReasoning(
     );
   }
 
+  const disclaimer = estimateDisclaimer(analysis);
+  if (disclaimer) reasons.push(disclaimer);
+
   if (reasons.length === 0) {
-    reasons.push(
-      "The numbers don't support this purchase — keep hunting."
-    );
+    reasons.push("The numbers don't support this purchase — keep hunting.");
   }
 
   return reasons;
