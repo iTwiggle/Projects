@@ -1,19 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { ClipboardPaste, Plus, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useRef, useState } from "react";
+import { ClipboardPaste, FileJson, Plus, X } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+  normalizeCapturedComps,
+  parseCompCaptureJson,
+  tryParseCompCaptureBatch,
+} from "@/lib/intake/comp-capture-import";
+import type { NormalizeCapturedCompsResult } from "@/lib/types/comp-capture";
 import {
   isValidCompDraft,
   parseCompTextBatch,
@@ -28,10 +22,26 @@ import {
   type CompListingType,
 } from "@/lib/types/comps";
 import { DEAL_CONDITIONS } from "@/lib/types/deal";
+import type { ItemIdentity } from "@/lib/types/item-identity";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface PasteCompTextProps {
   onImport: (comps: ComparableSale[]) => void;
+  existingComps?: ComparableSale[];
+  itemIdentity?: ItemIdentity | null;
+  compSearchQuery?: string | null;
 }
 
 const confidenceStyles: Record<FieldConfidence, string> = {
@@ -45,27 +55,92 @@ const listingTypeStyles = {
   listed: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
-export function PasteCompText({ onImport }: PasteCompTextProps) {
+export function PasteCompText({
+  onImport,
+  existingComps = [],
+  itemIdentity = null,
+  compSearchQuery = null,
+}: PasteCompTextProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [drafts, setDrafts] = useState<ParsedCompDraft[]>([]);
+  const [jsonImport, setJsonImport] = useState<NormalizeCapturedCompsResult | null>(
+    null
+  );
   const [parseNotice, setParseNotice] = useState<string | null>(null);
 
   function reset() {
     setPasteText("");
     setDrafts([]);
+    setJsonImport(null);
     setParseNotice(null);
     setOpen(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function previewJsonImport(text: string) {
+    const parsed = parseCompCaptureJson(text);
+    if (parsed.error || !parsed.batch) {
+      setJsonImport(null);
+      setDrafts([]);
+      setParseNotice(parsed.error ?? "Invalid comp capture JSON.");
+      return;
+    }
+
+    const result = normalizeCapturedComps(parsed.batch, {
+      existingComps,
+      itemIdentity,
+      compSearchQuery: compSearchQuery ?? parsed.batch.searchQuery,
+    });
+
+    setJsonImport(result);
+    setDrafts([]);
+    setParseNotice(
+      result.comps.length > 0
+        ? `JSON batch ready — ${result.comps.length} comp${result.comps.length !== 1 ? "s" : ""} to import.`
+        : "JSON parsed, but no comps could be imported."
+    );
   }
 
   function handleParse() {
+    const trimmed = pasteText.trim();
+    if (!trimmed) return;
+
+    if (tryParseCompCaptureBatch(trimmed)) {
+      previewJsonImport(trimmed);
+      return;
+    }
+
     const parsed = parseCompTextBatch(pasteText);
+    setJsonImport(null);
     setDrafts(parsed);
     setParseNotice(
       parsed.length > 0
         ? `Parsed ${parsed.length} comp${parsed.length !== 1 ? "s" : ""} — review before import.`
-        : "No comps found. Separate multiple listings with a blank line and include a price."
+        : "No comps found. Separate multiple listings with a blank line and include a price, or paste a CompCaptureBatch JSON envelope."
     );
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      setPasteText(text);
+      if (tryParseCompCaptureBatch(text)) {
+        previewJsonImport(text);
+      } else {
+        setParseNotice("Uploaded file is not a valid CompCaptureBatch JSON envelope.");
+        setJsonImport(null);
+        setDrafts([]);
+      }
+    };
+    reader.readAsText(file);
   }
 
   function updateDraft(
@@ -84,6 +159,12 @@ export function PasteCompText({ onImport }: PasteCompTextProps) {
   }
 
   function handleImport() {
+    if (jsonImport && jsonImport.comps.length > 0) {
+      onImport(jsonImport.comps);
+      reset();
+      return;
+    }
+
     const valid = drafts.filter(isValidCompDraft);
     if (valid.length === 0) return;
 
@@ -95,7 +176,9 @@ export function PasteCompText({ onImport }: PasteCompTextProps) {
     reset();
   }
 
-  const importableCount = drafts.filter(isValidCompDraft).length;
+  const importableCount = jsonImport
+    ? jsonImport.comps.length
+    : drafts.filter(isValidCompDraft).length;
 
   return (
     <div className="space-y-3">
@@ -107,12 +190,12 @@ export function PasteCompText({ onImport }: PasteCompTextProps) {
           onClick={() => setOpen(true)}
         >
           <ClipboardPaste className="size-4" aria-hidden />
-          Paste Comp Text
+          Paste Comp Text / JSON
         </Button>
       ) : (
         <div className="space-y-3 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">Paste Comp Text</p>
+            <p className="text-sm font-medium">Paste Comp Text / JSON</p>
             <Button
               type="button"
               variant="ghost"
@@ -124,42 +207,68 @@ export function PasteCompText({ onImport }: PasteCompTextProps) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Paste eBay sold results, Marketplace/Craigslist/OfferUp listings, or
-            auction text. Separate multiple comps with a blank line.
+            Paste plain comp text, a CompCaptureBatch JSON envelope, or upload a
+            `.json` file. Separate multiple plain-text comps with a blank line.
           </p>
 
           <div className="space-y-2">
-            <Label htmlFor="paste-comp-text">Comp text</Label>
+            <Label htmlFor="paste-comp-text">Comp text or JSON</Label>
             <Textarea
               id="paste-comp-text"
               rows={6}
-              placeholder={`eBay sold example:\nMakita drill kit\nSold $45\nGood condition\n\neBay sold example 2:\nVintage camera\n$120 sold on eBay`}
+              placeholder={`Plain text example:\nMakita drill kit\nSold $45\nGood condition\n\nJSON example:\n{\n  "schemaVersion": "1.0",\n  "source": "json",\n  "comps": [{ "title": "Milwaukee M18", "price": 89.99, "platform": "eBay", "listingType": "sold" }]\n}`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
-              className="min-h-[8rem] text-sm"
+              className="min-h-[8rem] font-mono text-sm"
             />
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={handleParse}
-            disabled={!pasteText.trim()}
-          >
-            Preview comps
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={handleParse}
+              disabled={!pasteText.trim()}
+            >
+              Preview comps
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <FileJson className="size-3.5" aria-hidden />
+              Upload JSON file
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
 
           {parseNotice && (
             <p
               className={cn(
                 "text-xs",
-                drafts.length > 0 ? "text-emerald-400" : "text-amber-400"
+                importableCount > 0 ? "text-emerald-400" : "text-amber-400"
               )}
             >
               {parseNotice}
             </p>
+          )}
+
+          {jsonImport && (
+            <JsonImportPreview
+              result={jsonImport}
+              onImport={handleImport}
+            />
           )}
 
           {drafts.length > 0 && (
@@ -189,6 +298,64 @@ export function PasteCompText({ onImport }: PasteCompTextProps) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function JsonImportPreview({
+  result,
+  onImport,
+}: {
+  result: NormalizeCapturedCompsResult;
+  onImport: () => void;
+}) {
+  const { comps, report } = result;
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border/50 bg-background/50 p-3">
+      <div className="flex flex-wrap gap-2 text-[10px]">
+        <Badge variant="outline">{report.importedCount} to import</Badge>
+        {report.skippedCount > 0 && (
+          <Badge variant="outline">{report.skippedCount} skipped</Badge>
+        )}
+        {report.duplicateCount > 0 && (
+          <Badge variant="outline">{report.duplicateCount} duplicates</Badge>
+        )}
+      </div>
+
+      {report.warnings.length > 0 && (
+        <ul className="space-y-1 text-xs text-amber-300">
+          {report.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
+
+      {comps.length > 0 && (
+        <ul className="space-y-2">
+          {comps.map((comp) => (
+            <li
+              key={comp.id}
+              className="rounded-lg bg-background/60 p-2.5 text-xs"
+            >
+              <p className="font-medium">{comp.title}</p>
+              <p className="text-muted-foreground">
+                {comp.platform} · {comp.listingType} · ${comp.price}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button
+        type="button"
+        className="w-full bg-violet-600 text-white hover:bg-violet-500"
+        onClick={onImport}
+        disabled={comps.length === 0}
+      >
+        <Plus className="size-4" aria-hidden />
+        Import {comps.length} comp{comps.length !== 1 ? "s" : ""}
+      </Button>
     </div>
   );
 }

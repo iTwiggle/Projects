@@ -30,6 +30,7 @@ import { CompSearchLinksPanel } from "@/components/deal/comp-search-links-panel"
 import { PasteCompText } from "@/components/deal/paste-comp-text";
 import type { CompSearchQuery } from "@/lib/types/comp-search";
 import { DEAL_CONDITIONS, type DealCondition } from "@/lib/types/deal";
+import type { ItemIdentity } from "@/lib/types/item-identity";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +57,7 @@ interface ComparableSalesPanelProps {
   compsEstimateManualOff?: boolean;
   onCompsEstimateManualOffChange?: (manualOff: boolean) => void;
   compSearch?: CompSearchQuery | null;
+  itemIdentity?: ItemIdentity | null;
 }
 
 const confidenceStyles = {
@@ -79,6 +81,7 @@ export function ComparableSalesPanel({
   compsEstimateManualOff = false,
   onCompsEstimateManualOffChange,
   compSearch = null,
+  itemIdentity = null,
 }: ComparableSalesPanelProps) {
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState<Omit<ComparableSale, "id">>(() => ({
@@ -490,7 +493,12 @@ export function ComparableSalesPanel({
           </Button>
         )}
 
-        <PasteCompText onImport={handleImportComps} />
+        <PasteCompText
+          onImport={handleImportComps}
+          existingComps={comps}
+          itemIdentity={itemIdentity}
+          compSearchQuery={compSearch?.query ?? null}
+        />
 
         {canUseComps && (
           <div className="space-y-2 border-t border-border/40 pt-3">

@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (v2 Data Acquisition Spec draft)
+Last updated: 2026-06-08 (Comp Capture Import Phase 1)
 
 ## Product intent
 
@@ -61,6 +61,8 @@ Saved deals schema unchanged.
 | `comp-search-links.ts` | Identity-aware query + marketplace URL builders |
 | `comp-search-links-panel.tsx` | One-tap search links + copy query UI |
 | `analyze-draft.ts` | Persists OCR/listing text for analyze session |
+| `types/comp-capture.ts` | `CapturedComp`, `CompCaptureBatch`, `CompImportReport` |
+| `comp-capture-import.ts` | Normalize captured comps → `ComparableSale[]` |
 
 ## Known risks / technical debt
 
@@ -70,7 +72,8 @@ Saved deals schema unchanged.
 
 ## Recent changes
 
-- Identity-Aware Comp Search Links v1: 6 marketplace links from identity or item name (105 tests)
+- Comp Capture Import Phase 1: JSON envelope import, normalization, dedupe, mismatch warnings (117 tests)
+- Identity-Aware Comp Search Links v1: 6 marketplace links from identity or item name
 - Identity Reliability Pass v1: per-source evidence, conflict detection, OCR integration, calibrated confidence
 - Item Identity v1 baseline (brand/model/family/variant detection)
 
@@ -89,8 +92,10 @@ Manual:
 
 **Data acquisition spec (draft):** [`docs/MARKETPLACE_GOBLIN_V2_DATA_ACQUISITION_SPEC.md`](./MARKETPLACE_GOBLIN_V2_DATA_ACQUISITION_SPEC.md)
 
-Planned hybrid path: identity-aware search links (shipped) → browser extension capture → paste/JSON import fallback → optional SerpApi eBay sold via thin BFF (paid tier). No v2 implementation committed yet.
+Planned hybrid path: identity-aware search links (shipped) → browser extension capture → paste/JSON import fallback → optional SerpApi eBay sold via thin BFF (paid tier).
+
+**Phase 1 shipped:** `CompCaptureBatch` types, `normalizeCapturedComps()`, JSON paste/file import in Comparable Sales panel, identity/search-query mismatch warnings, plain-text paste preserved.
 
 ## Recommended next step
 
-Implement **Phase 1** from the v2 spec: app-side `CompCaptureBatch` import contract + JSON import in Comparable Sales panel.
+Phase 2: browser extension prototype exporting `CompCaptureBatch` JSON for eBay sold search capture.

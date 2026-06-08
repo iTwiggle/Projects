@@ -95,6 +95,7 @@ function DealDetailContent({
             onCompsChange(deal.id, vm.comps, useCompsForResale)
           }
           compSearch={vm.compSearch}
+          itemIdentity={vm.itemIdentity}
         />
 
         <ResaleEstimatePanel
