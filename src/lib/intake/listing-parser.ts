@@ -8,6 +8,20 @@ export interface ExtractedListingFields {
   notes: string;
 }
 
+export type FieldConfidence = "high" | "medium" | "low";
+
+export interface ExtractionConfidence {
+  itemName: FieldConfidence;
+  askingPrice: FieldConfidence;
+  condition: FieldConfidence;
+  category: FieldConfidence;
+}
+
+export interface ParsedListingResult {
+  fields: ExtractedListingFields;
+  confidence: ExtractionConfidence;
+}
+
 export const DEFAULT_EXTRACTED: ExtractedListingFields = {
   itemName: "",
   askingPrice: 0,
@@ -16,155 +30,94 @@ export const DEFAULT_EXTRACTED: ExtractedListingFields = {
   notes: "",
 };
 
-const PRICE_PATTERNS: RegExp[] = [
-  /\$\s*([\d,]+(?:\.\d{2})?)/,
-  /(?:asking|price|listed|sell(?:ing)?)[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
-  /([\d,]+(?:\.\d{2})?)\s*(?:USD|usd|obo)\b/i,
-  /\b([\d,]+(?:\.\d{2})?)\s*(?:firm|cash)\b/i,
+export const DEFAULT_CONFIDENCE: ExtractionConfidence = {
+  itemName: "low",
+  askingPrice: "low",
+  condition: "low",
+  category: "low",
+};
+
+const PRICE_PATTERNS: { pattern: RegExp; confidence: FieldConfidence }[] = [
+  { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:obo|or best offer)?/i, confidence: "high" },
+  { pattern: /(?:asking|price|listed|sell(?:ing)?)\s+(?:for|at)?\s*:?\s*\$?\s*([\d,]+(?:\.\d{2})?)/i, confidence: "high" },
+  { pattern: /\b([\d,]+(?:\.\d{2})?)\s*(?:USD|usd)\b/i, confidence: "high" },
+  { pattern: /\b([\d,]+(?:\.\d{2})?)\s+firm\b/i, confidence: "medium" },
+  { pattern: /\b([\d,]+(?:\.\d{2})?)\s+cash\b/i, confidence: "medium" },
+  { pattern: /\$\s*([\d,]+(?:\.\d{2})?)/, confidence: "high" },
 ];
 
-const CONDITION_RULES: { pattern: RegExp; condition: DealCondition }[] = [
-  { pattern: /\bbrand\s*new\b|\bnew\s+in\s+box\b|\bnib\b|\bsealed\b/i, condition: "New" },
-  { pattern: /\blike\s*new\b|\bopen\s*box\b|\blnib\b/i, condition: "Like New" },
-  { pattern: /\bfair\s+condition\b|\bfair\b/i, condition: "Fair" },
-  { pattern: /\bpoor\s+condition\b|\bfor\s+parts\b|\bnot\s+working\b|\bas-?is\b/i, condition: "Poor" },
-  { pattern: /\bgood\s+condition\b|\bgently\s+used\b|\bused\b/i, condition: "Good" },
-  { pattern: /\bexcellent\b/i, condition: "Like New" },
+const CONDITION_RULES: { pattern: RegExp; condition: DealCondition; confidence: FieldConfidence }[] = [
+  { pattern: /\bbrand\s*new\b|\bnew\s+in\s+box\b|\bnib\b|\bsealed\b/i, condition: "New", confidence: "high" },
+  { pattern: /\blike\s*new\b|\bopen\s*box\b|\blnib\b|\bexcellent\b/i, condition: "Like New", confidence: "high" },
+  { pattern: /\bfair\s+condition\b/i, condition: "Fair", confidence: "high" },
+  { pattern: /\bpoor\s+condition\b|\bfor\s+parts\b|\bnot\s+working\b|\bas-?is\b/i, condition: "Poor", confidence: "high" },
+  { pattern: /\bgood\s+condition\b|\bgently\s+used\b/i, condition: "Good", confidence: "high" },
+  { pattern: /\bfair\b/i, condition: "Fair", confidence: "medium" },
+  { pattern: /\bused\b/i, condition: "Good", confidence: "medium" },
+];
+
+const TITLE_STRIP_PATTERNS = [
+  /\s*[-–|•·]\s*(brand\s*new|like\s*new|good|fair|poor|used|excellent)(\s+condition)?\b/gi,
+  /\s*\(\s*(new|used|like\s*new|good|fair|poor|excellent)\s*\)/gi,
+  /\s*[,;]\s*(good|fair|poor|used|like\s*new)\s*$/gi,
 ];
 
 const CATEGORY_HINTS: { category: DealCategory; keywords: string[] }[] = [
   {
     category: "Electronics",
     keywords: [
-      "iphone",
-      "ipad",
-      "macbook",
-      "laptop",
-      "computer",
-      "tv",
-      "television",
-      "monitor",
-      "camera",
-      "playstation",
-      "xbox",
-      "nintendo",
-      "switch",
-      "tablet",
-      "speaker",
-      "headphones",
-      "airpods",
-      "samsung",
-      "gpu",
-      "router",
+      "iphone", "ipad", "macbook", "laptop", "computer", "tv", "television",
+      "monitor", "camera", "playstation", "xbox", "nintendo", "switch",
+      "tablet", "speaker", "headphones", "airpods", "samsung", "gpu", "router",
     ],
   },
   {
     category: "Furniture",
     keywords: [
-      "couch",
-      "sofa",
-      "dresser",
-      "table",
-      "chair",
-      "desk",
-      "bed",
-      "mattress",
-      "bookshelf",
-      "cabinet",
-      "sectional",
+      "couch", "sofa", "dresser", "table", "chair", "desk", "bed", "mattress",
+      "bookshelf", "cabinet", "sectional",
     ],
   },
   {
     category: "Vehicles & Parts",
     keywords: [
-      "car",
-      "truck",
-      "motorcycle",
-      "bike",
-      "tire",
-      "rim",
-      "engine",
-      "transmission",
-      "honda",
-      "toyota",
-      "ford",
-      "harley",
+      "car", "truck", "motorcycle", "bike", "tire", "rim", "engine",
+      "transmission", "honda", "toyota", "ford", "harley",
     ],
   },
   {
     category: "Clothing & Accessories",
     keywords: [
-      "shirt",
-      "jacket",
-      "shoes",
-      "sneakers",
-      "purse",
-      "handbag",
-      "watch",
-      "jeans",
-      "coat",
-      "nike",
-      "adidas",
-      "patagonia",
+      "shirt", "jacket", "shoes", "sneakers", "purse", "handbag", "watch",
+      "jeans", "coat", "nike", "adidas", "patagonia",
     ],
   },
   {
     category: "Collectibles & Antiques",
     keywords: [
-      "vintage",
-      "antique",
-      "collectible",
-      "rare",
-      "coin",
-      "comic",
-      "trading card",
-      "pokemon",
-      "memorabilia",
+      "vintage", "antique", "collectible", "rare", "coin", "comic",
+      "trading card", "pokemon", "memorabilia",
     ],
   },
   {
     category: "Tools & Hardware",
     keywords: [
-      "drill",
-      "saw",
-      "wrench",
-      "tool",
-      "dewalt",
-      "makita",
-      "milwaukee",
-      "craftsman",
-      "ladder",
-      "compressor",
+      "drill", "saw", "wrench", "tool", "dewalt", "makita", "milwaukee",
+      "craftsman", "ladder", "compressor",
     ],
   },
   {
     category: "Home & Garden",
     keywords: [
-      "planter",
-      "grill",
-      "lawn",
-      "mower",
-      "vacuum",
-      "le creuset",
-      "kitchen",
-      "dutch oven",
-      "patio",
-      "garden",
+      "planter", "grill", "lawn", "mower", "vacuum", "le creuset", "kitchen",
+      "dutch oven", "patio", "garden",
     ],
   },
   {
     category: "Sports & Outdoors",
     keywords: [
-      "kayak",
-      "golf",
-      "fishing",
-      "camping",
-      "tent",
-      "bicycle",
-      "weights",
-      "fitness",
-      "ski",
-      "snowboard",
+      "kayak", "golf", "fishing", "camping", "tent", "bicycle", "weights",
+      "fitness", "ski", "snowboard",
     ],
   },
   {
@@ -178,38 +131,49 @@ const CATEGORY_HINTS: { category: DealCategory; keywords: string[] }[] = [
   {
     category: "Appliances",
     keywords: [
-      "refrigerator",
-      "fridge",
-      "washer",
-      "dryer",
-      "dishwasher",
-      "microwave",
-      "oven",
-      "freezer",
-      "appliance",
+      "refrigerator", "fridge", "washer", "dryer", "dishwasher", "microwave",
+      "oven", "freezer", "appliance",
     ],
   },
 ];
 
-function parsePrice(text: string): number {
-  for (const pattern of PRICE_PATTERNS) {
+const SKIP_TITLE_LINE =
+  /^(listed|posted|seller|location|pickup|message|share|marketplace|facebook|offerup|craigslist|free)\b/i;
+
+interface PriceParseResult {
+  value: number;
+  confidence: FieldConfidence;
+  isFree: boolean;
+}
+
+function parsePrice(text: string): PriceParseResult {
+  if (/\bfree\b/i.test(text)) {
+    return { value: 0, confidence: "high", isFree: true };
+  }
+
+  for (const { pattern, confidence } of PRICE_PATTERNS) {
     const match = text.match(pattern);
     if (match?.[1]) {
       const value = parseFloat(match[1].replace(/,/g, ""));
-      if (!Number.isNaN(value) && value > 0) return value;
+      if (!Number.isNaN(value) && value > 0) {
+        return { value, confidence, isFree: false };
+      }
     }
   }
-  return 0;
+
+  return { value: 0, confidence: "low", isFree: false };
 }
 
-function parseCondition(text: string): DealCondition {
+function parseCondition(text: string): { condition: DealCondition; confidence: FieldConfidence } {
   for (const rule of CONDITION_RULES) {
-    if (rule.pattern.test(text)) return rule.condition;
+    if (rule.pattern.test(text)) {
+      return { condition: rule.condition, confidence: rule.confidence };
+    }
   }
-  return "Good";
+  return { condition: "Good", confidence: "low" };
 }
 
-function parseCategory(text: string): DealCategory {
+function parseCategory(text: string): { category: DealCategory; confidence: FieldConfidence; score: number } {
   const lower = text.toLowerCase();
   let best: DealCategory = "Other";
   let bestScore = 0;
@@ -225,34 +189,51 @@ function parseCategory(text: string): DealCategory {
     }
   }
 
-  return best;
+  const confidence: FieldConfidence =
+    bestScore >= 2 ? "high" : bestScore === 1 ? "medium" : "low";
+
+  return { category: best, confidence, score: bestScore };
 }
 
 function isPriceLine(line: string): boolean {
-  return PRICE_PATTERNS.some((pattern) => pattern.test(line));
+  if (/\bfree\b/i.test(line)) return true;
+  return PRICE_PATTERNS.some(({ pattern }) => pattern.test(line));
+}
+
+function stripConditionFromTitle(title: string): string {
+  let result = title;
+  for (const pattern of TITLE_STRIP_PATTERNS) {
+    result = result.replace(pattern, "");
+  }
+  return result.replace(/\s{2,}/g, " ").trim();
 }
 
 function cleanTitle(line: string): string {
-  return line
-    .replace(/^\d+[.)]\s*/, "")
-    .replace(/\s*[-–|•]\s*Facebook.*$/i, "")
-    .replace(/\s*[-–|•]\s*Marketplace.*$/i, "")
-    .replace(/\s*[-–|•]\s*OfferUp.*$/i, "")
-    .replace(/\s*[-–|•]\s*Craigslist.*$/i, "")
-    .trim();
+  return stripConditionFromTitle(
+    line
+      .replace(/^\d+[.)]\s*/, "")
+      .replace(/\s*[-–|•]\s*Facebook.*$/i, "")
+      .replace(/\s*[-–|•]\s*Marketplace.*$/i, "")
+      .replace(/\s*[-–|•]\s*OfferUp.*$/i, "")
+      .replace(/\s*[-–|•]\s*Craigslist.*$/i, "")
+      .trim()
+  );
 }
 
-function parseTitle(lines: string[]): string {
+function parseTitle(lines: string[]): { title: string; confidence: FieldConfidence } {
   for (const line of lines) {
     const cleaned = cleanTitle(line);
     if (cleaned.length < 3) continue;
-    if (isPriceLine(cleaned) && cleaned.length < 20) continue;
-    if (/^(listed|posted|seller|location|pickup|message)\b/i.test(cleaned)) {
-      continue;
-    }
-    return cleaned.slice(0, 120);
+    if (isPriceLine(cleaned) && cleaned.length < 24) continue;
+    if (SKIP_TITLE_LINE.test(cleaned)) continue;
+    if (/^pickup\s+only\b/i.test(cleaned)) continue;
+
+    const confidence: FieldConfidence =
+      cleaned.length >= 8 ? "high" : cleaned.length >= 4 ? "medium" : "low";
+
+    return { title: cleaned.slice(0, 120), confidence };
   }
-  return "";
+  return { title: "", confidence: "low" };
 }
 
 function buildNotes(lines: string[], title: string, priceLineIndexes: Set<number>): string {
@@ -270,34 +251,49 @@ function buildNotes(lines: string[], title: string, priceLineIndexes: Set<number
   return noteLines.join("\n").trim().slice(0, 500);
 }
 
-export function parseListingText(text: string): ExtractedListingFields {
+export function parseListingWithConfidence(text: string): ParsedListingResult {
   const trimmed = text.trim();
-  if (!trimmed) return { ...DEFAULT_EXTRACTED };
+  if (!trimmed) {
+    return { fields: { ...DEFAULT_EXTRACTED }, confidence: { ...DEFAULT_CONFIDENCE } };
+  }
 
   const lines = trimmed
-    .split(/\r?\n/)
+    .split(/\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const askingPrice = parsePrice(trimmed);
-  const condition = parseCondition(trimmed);
-  const category = parseCategory(trimmed);
-  const itemName = parseTitle(lines);
+  const priceResult = parsePrice(trimmed);
+  const conditionResult = parseCondition(trimmed);
+  const categoryResult = parseCategory(trimmed);
+  const titleResult = parseTitle(lines);
 
   const priceLineIndexes = new Set<number>();
   lines.forEach((line, index) => {
     if (isPriceLine(line)) priceLineIndexes.add(index);
   });
 
-  const notes = buildNotes(lines, itemName, priceLineIndexes);
+  const notes = buildNotes(lines, titleResult.title, priceLineIndexes);
 
   return {
-    itemName,
-    askingPrice,
-    condition,
-    category,
-    notes,
+    fields: {
+      itemName: titleResult.title,
+      askingPrice: priceResult.value,
+      condition: conditionResult.condition,
+      category: categoryResult.category,
+      notes,
+    },
+    confidence: {
+      itemName: titleResult.confidence,
+      askingPrice: priceResult.isFree ? "high" : priceResult.confidence,
+      condition: conditionResult.confidence,
+      category: categoryResult.confidence,
+    },
   };
+}
+
+/** @deprecated Use parseListingWithConfidence for confidence scores. */
+export function parseListingText(text: string): ExtractedListingFields {
+  return parseListingWithConfidence(text).fields;
 }
 
 export function extractedToDealPartial(

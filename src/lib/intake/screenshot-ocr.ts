@@ -145,7 +145,7 @@ export async function extractTextFromScreenshot(
     });
 
     const result = await worker.recognize(normalizedImage);
-    const text = result.data.text.trim();
+    const text = result.data.text;
 
     if (!text) {
       return {
