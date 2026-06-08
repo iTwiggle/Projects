@@ -9,7 +9,7 @@
   <body>
     <header class="header">
       <h1>Marketplace Goblin</h1>
-      <p class="subtitle">eBay comp capture v0.2</p>
+      <p class="subtitle">eBay comp capture v0.3</p>
     </header>
 
     <p id="page-status" class="status">Checking page…</p>
@@ -49,15 +49,20 @@
       <ul id="preview-list" class="preview-list"></ul>
     </section>
 
-    <button id="copy-btn" type="button" class="btn btn-secondary hidden" disabled>
-      Copy JSON to clipboard
-    </button>
+    <div id="export-actions" class="export-actions hidden">
+      <button id="send-btn" type="button" class="btn btn-primary" disabled>
+        Send to Goblin
+      </button>
+      <button id="copy-btn" type="button" class="btn btn-secondary" disabled>
+        Copy JSON to clipboard
+      </button>
+    </div>
 
     <p id="toast" class="toast hidden" role="status"></p>
 
     <footer class="footer">
-      Paste copied JSON into Marketplace Goblin → Comparable Sales → Paste Comp
-      Text / JSON
+      In Goblin, click Listen for extension import, then Send to Goblin. Clipboard
+      JSON paste still works as a fallback.
     </footer>
 
     <script type="module" src="popup.js"></script>

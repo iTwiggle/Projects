@@ -2,7 +2,7 @@
 
 Chrome/Edge MV3 extension that captures eBay search result cards and single listing pages, then exports a `CompCaptureBatch` JSON envelope for import into Marketplace Goblin.
 
-**Scope (v0.2):** eBay search (`/sch/`, `/b/`) and single listing (`/itm/`) pages. No direct app connection yet — copy JSON and paste into Goblin.
+**Scope (v0.3):** eBay search (`/sch/`, `/b/`) and single listing (`/itm/`) pages. Same-browser direct import to localhost Goblin via postMessage, with clipboard JSON as fallback.
 
 ## Prerequisites
 
@@ -62,14 +62,19 @@ Chrome/Edge MV3 extension that captures eBay search result cards and single list
 4. Confirm stats show 1 valid comp (or 1 skipped if title/price missing)
 5. Copy JSON and import into Goblin
 
-### 5. Import into Marketplace Goblin
+### 5. Direct import (Send to Goblin)
 
-1. Return to Goblin → **Comparable Sales** panel
-2. Open **Paste Comp Text / JSON**
-3. Paste the copied JSON into the textarea
-4. Click **Preview comps** → review import report
-5. Click **Import N comps**
-6. Confirm comps appear in the list and analysis updates
+1. In Goblin → **Comparable Sales** → click **Listen for extension import**
+2. Confirm the green listening banner is visible (times out after 2 minutes of inactivity; cancel anytime)
+3. In the extension popup, click **Send to Goblin**
+4. Goblin shows import preview + report — review warnings and duplicates
+5. Click **Import N comps** to confirm (never auto-imported)
+
+### 6. Clipboard fallback
+
+1. Click **Copy JSON to clipboard** in the extension
+2. In Goblin → **Paste Comp Text / JSON** → paste → **Preview comps** → **Import N comps**
+3. Confirm comps appear in the list and analysis updates
 
 ## Output schema
 
@@ -89,16 +94,20 @@ Clipboard copies **only** the batch object (no stats wrapper).
 | `activeTab` | Read the tab you clicked the extension on |
 | `scripting` | Inject capture script on demand |
 | `clipboardWrite` | Copy JSON after you confirm |
-| `https://www.ebay.com/*` | eBay pages only |
+| `https://www.ebay.com/*` | eBay capture pages |
+| `http://localhost/*`, `http://127.0.0.1/*` | Send to local Marketplace Goblin tab only |
+| `tabs` | Find open Goblin tabs on localhost for Send to Goblin |
 
-No cookies, background polling, or external servers.
+No cookies, background polling, accounts, servers, auth, sync, or permanent pairing.
 
-## Limitations (v0.2)
+## Limitations (v0.3)
 
 - **Viewport only on search pages** — captures visible `.s-item` cards; scroll and capture again to add more (Goblin dedupes on import)
 - **Single listing** — one comp per `/itm/` page; sold/listed inferred from page text (lower confidence than sold-search context)
 - **DOM fragility** — eBay layout changes may break selectors
-- **Clipboard bridge** — no postMessage to Goblin yet; manual paste required
+- **Local prototype only** — Send to Goblin targets `localhost` / `127.0.0.1` in the same browser; no hosted URL pairing yet
+- **User-initiated** — Goblin must be in Listen mode; imports always require preview + confirm
+- **Clipboard fallback** — Copy JSON still supported when direct send fails
 - **Filtering is best-effort** — sponsored, “Shop on eBay”, and empty placeholder rows are skipped when detected; review preview before copy
 - **Sold detection** — uses URL `LH_Sold=1` / `LH_Complete=1` plus row text; ambiguous rows get `listingType` confidence `low` in preview
 - **No other platforms** — Facebook, Craigslist, OfferUp not supported yet
@@ -113,6 +122,7 @@ extension/
     schema.js
     ebay-parser.js          # ES module (reference + vitest)
     ebay-parser-global.js   # Injected into eBay tab
+    goblin-bridge.js        # Send to Goblin postMessage bridge
   content/
     ebay-capture.js         # DOM extraction + stats
   popup/

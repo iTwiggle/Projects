@@ -1,7 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ClipboardPaste, FileJson, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ClipboardPaste, FileJson, Plus, Radio, X } from "lucide-react";
+import {
+  EXTENSION_IMPORT_LISTEN_TIMEOUT_MS,
+  EXTENSION_IMPORT_MESSAGE_TYPE,
+  isTrustedExtensionImportOrigin,
+  postExtensionImportAck,
+  validateExtensionImportMessage,
+} from "@/lib/extension/comp-import-bridge";
+import type { CompCaptureBatch } from "@/lib/types/comp-capture";
 import {
   normalizeCapturedComps,
   parseCompCaptureJson,
@@ -62,7 +70,11 @@ export function PasteCompText({
   compSearchQuery = null,
 }: PasteCompTextProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listeningRef = useRef(false);
   const [open, setOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [listenNotice, setListenNotice] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [drafts, setDrafts] = useState<ParsedCompDraft[]>([]);
   const [jsonImport, setJsonImport] = useState<NormalizeCapturedCompsResult | null>(
@@ -70,7 +82,35 @@ export function PasteCompText({
   );
   const [parseNotice, setParseNotice] = useState<string | null>(null);
 
+  const clearListenTimeout = useCallback(() => {
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
+  }, []);
+
+  const stopListening = useCallback(
+    (notice?: string) => {
+      clearListenTimeout();
+      listeningRef.current = false;
+      setListening(false);
+      if (notice !== undefined) {
+        setListenNotice(notice);
+      }
+    },
+    [clearListenTimeout]
+  );
+
+  const scheduleListenTimeout = useCallback(() => {
+    clearListenTimeout();
+    listenTimeoutRef.current = setTimeout(() => {
+      stopListening("Extension listen timed out after inactivity.");
+    }, EXTENSION_IMPORT_LISTEN_TIMEOUT_MS);
+  }, [clearListenTimeout, stopListening]);
+
   function reset() {
+    stopListening();
+    setListenNotice(null);
     setPasteText("");
     setDrafts([]);
     setJsonImport(null);
@@ -81,6 +121,26 @@ export function PasteCompText({
     }
   }
 
+  const previewJsonBatch = useCallback(
+    (batch: CompCaptureBatch, sourceLabel = "Batch") => {
+      const result = normalizeCapturedComps(batch, {
+        existingComps,
+        itemIdentity,
+        compSearchQuery: compSearchQuery ?? batch.searchQuery,
+      });
+
+      setJsonImport(result);
+      setDrafts([]);
+      setOpen(true);
+      setParseNotice(
+        result.comps.length > 0
+          ? `${sourceLabel} ready — ${result.comps.length} comp${result.comps.length !== 1 ? "s" : ""} to import.`
+          : `${sourceLabel} received, but no comps could be imported.`
+      );
+    },
+    [compSearchQuery, existingComps, itemIdentity]
+  );
+
   function previewJsonImport(text: string) {
     const parsed = parseCompCaptureJson(text);
     if (parsed.error || !parsed.batch) {
@@ -90,20 +150,57 @@ export function PasteCompText({
       return;
     }
 
-    const result = normalizeCapturedComps(parsed.batch, {
-      existingComps,
-      itemIdentity,
-      compSearchQuery: compSearchQuery ?? parsed.batch.searchQuery,
-    });
-
-    setJsonImport(result);
-    setDrafts([]);
-    setParseNotice(
-      result.comps.length > 0
-        ? `JSON batch ready — ${result.comps.length} comp${result.comps.length !== 1 ? "s" : ""} to import.`
-        : "JSON parsed, but no comps could be imported."
-    );
+    previewJsonBatch(parsed.batch, "JSON batch");
   }
+
+  const startListening = useCallback(() => {
+    setOpen(true);
+    listeningRef.current = true;
+    setListening(true);
+    setListenNotice(
+      "Listening for extension import — capture comps in the extension, then click Send to Goblin."
+    );
+    setParseNotice(null);
+    scheduleListenTimeout();
+  }, [scheduleListenTimeout]);
+
+  useEffect(() => {
+    function handleExtensionMessage(event: MessageEvent) {
+      if (event.source !== window) return;
+      if (!isTrustedExtensionImportOrigin(event.origin, window.location.origin)) {
+        return;
+      }
+      if (event.data?.type !== EXTENSION_IMPORT_MESSAGE_TYPE) return;
+
+      if (!listeningRef.current) {
+        postExtensionImportAck(
+          false,
+          "Marketplace Goblin is not listening for extension import."
+        );
+        return;
+      }
+
+      scheduleListenTimeout();
+
+      const { batch, error } = validateExtensionImportMessage(event.data);
+      if (error || !batch) {
+        postExtensionImportAck(false, error ?? "Invalid extension batch.");
+        setListenNotice(error ?? "Rejected malformed extension batch.");
+        return;
+      }
+
+      postExtensionImportAck(true);
+      previewJsonBatch(batch, "Extension batch");
+      setListenNotice(
+        `Received ${batch.comps.length} comp${batch.comps.length !== 1 ? "s" : ""} from extension — review and confirm import.`
+      );
+    }
+
+    window.addEventListener("message", handleExtensionMessage);
+    return () => window.removeEventListener("message", handleExtensionMessage);
+  }, [previewJsonBatch, scheduleListenTimeout]);
+
+  useEffect(() => () => clearListenTimeout(), [clearListenTimeout]);
 
   function handleParse() {
     const trimmed = pasteText.trim();
@@ -182,16 +279,64 @@ export function PasteCompText({
 
   return (
     <div className="space-y-3">
-      {!open ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={() => setOpen(true)}
+      {listening && (
+        <div
+          className="space-y-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3"
+          role="status"
+          aria-live="polite"
         >
-          <ClipboardPaste className="size-4" aria-hidden />
-          Paste Comp Text / JSON
-        </Button>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+              </span>
+              Listening for extension import
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => stopListening("Extension listen cancelled.")}
+            >
+              Cancel
+            </Button>
+          </div>
+          <p className="text-xs text-emerald-200/80">
+            Capture comps in the extension, then click Send to Goblin. Listening
+            stops after 2 minutes of inactivity or when you cancel.
+          </p>
+          {listenNotice && (
+            <p className="text-xs text-emerald-100/90">{listenNotice}</p>
+          )}
+        </div>
+      )}
+
+      {!open ? (
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => setOpen(true)}
+          >
+            <ClipboardPaste className="size-4" aria-hidden />
+            Paste Comp Text / JSON
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              "w-full",
+              listening && "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+            )}
+            onClick={() => (listening ? stopListening("Extension listen cancelled.") : startListening())}
+            aria-pressed={listening}
+          >
+            <Radio className="size-4" aria-hidden />
+            {listening ? "Stop listening" : "Listen for extension import"}
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
           <div className="flex items-center justify-between gap-2">
@@ -209,7 +354,25 @@ export function PasteCompText({
           <p className="text-xs text-muted-foreground">
             Paste plain comp text, a CompCaptureBatch JSON envelope, or upload a
             `.json` file. Separate multiple plain-text comps with a blank line.
+            Or use Listen for extension import for direct Send to Goblin.
           </p>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "w-full",
+              listening && "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+            )}
+            onClick={() =>
+              listening ? stopListening("Extension listen cancelled.") : startListening()
+            }
+            aria-pressed={listening}
+          >
+            <Radio className="size-3.5" aria-hidden />
+            {listening ? "Stop listening for extension" : "Listen for extension import"}
+          </Button>
 
           <div className="space-y-2">
             <Label htmlFor="paste-comp-text">Comp text or JSON</Label>

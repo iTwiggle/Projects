@@ -1,3 +1,5 @@
+import { sendBatchToGoblin } from "../lib/goblin-bridge.js";
+
 /** @type {import('../lib/schema.js').CompCaptureBatch | null} */
 let currentBatch = null;
 
@@ -12,6 +14,8 @@ const statSkipped = document.getElementById("stat-skipped");
 const captureMetaEl = document.getElementById("capture-meta");
 const previewSection = document.getElementById("preview");
 const previewList = document.getElementById("preview-list");
+const exportActionsEl = document.getElementById("export-actions");
+const sendBtn = document.getElementById("send-btn");
 const copyBtn = document.getElementById("copy-btn");
 const toastEl = document.getElementById("toast");
 
@@ -76,6 +80,13 @@ function renderPreview(batch) {
     li.appendChild(meta);
     previewList.appendChild(li);
   }
+}
+
+function showExportActions(batch) {
+  exportActionsEl.classList.remove("hidden");
+  const hasComps = batch.comps.length > 0;
+  sendBtn.disabled = !hasComps;
+  copyBtn.disabled = !hasComps;
 }
 
 async function getActiveTab() {
@@ -161,8 +172,7 @@ async function init() {
       const scanned = stats?.scannedRows ?? batch.comps.length;
       captureMetaEl.textContent = `Scanned ${scanned} row${scanned === 1 ? "" : "s"} · query: ${batch.searchQuery || "—"}`;
 
-      copyBtn.classList.remove("hidden");
-      copyBtn.disabled = batch.comps.length === 0;
+      showExportActions(batch);
 
       if (pageKind === "search" && batch.comps.length > 0) {
         showToast("Captured — scroll for more, then capture again if needed.");
@@ -173,6 +183,31 @@ async function init() {
     } finally {
       captureBtn.disabled = false;
       captureBtn.textContent = originalLabel;
+    }
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    if (!currentBatch) return;
+
+    sendBtn.disabled = true;
+    const originalLabel = sendBtn.textContent;
+    sendBtn.textContent = "Sending…";
+
+    try {
+      const result = await sendBatchToGoblin(currentBatch);
+      if (result.ok) {
+        showToast(
+          `Sent ${currentBatch.comps.length} comps to Marketplace Goblin — confirm import there.`
+        );
+      } else {
+        showToast(result.error ?? "Send failed — use Copy JSON as a fallback.");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Send failed — use Copy JSON as a fallback.");
+    } finally {
+      sendBtn.disabled = currentBatch.comps.length === 0;
+      sendBtn.textContent = originalLabel;
     }
   });
 

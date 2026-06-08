@@ -84,6 +84,19 @@ body {
   color: #94a3b8;
 }
 
+.export-actions {
+  margin: 12px 14px 0;
+}
+
+.export-actions .btn {
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.export-actions .btn:last-child {
+  margin-bottom: 0;
+}
+
 .btn {
   display: block;
   width: calc(100% - 28px);
