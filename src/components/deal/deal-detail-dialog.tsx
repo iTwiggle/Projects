@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
+import { CategoryIntelligencePanel } from "@/components/deal/category-intelligence-panel";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
@@ -77,9 +78,12 @@ export function DealDetailDialog({
             />
 
             <ResaleEstimatePanel
-            estimate={vm.analysis.resaleEstimate}
-            warnings={vm.display.warnings}
-          />
+              estimate={vm.analysis.resaleEstimate}
+              warnings={vm.display.warnings}
+            />
+
+            <CategoryIntelligencePanel categoryIntel={vm.categoryIntel} />
+
             <HaggleModePanel
               haggle={vm.haggle}
               askingPrice={vm.input.askingPrice}

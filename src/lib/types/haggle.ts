@@ -22,6 +22,7 @@ export interface HaggleGuide {
   askingPriceRatingLabel: string;
   currentRoiPercent: number;
   scripts: HaggleScripts;
+  negotiationNotes: string[];
 }
 
 export const ASKING_RATING_LABELS: Record<AskingPriceRating, string> = {

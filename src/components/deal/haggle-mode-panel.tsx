@@ -135,6 +135,21 @@ export function HaggleModePanel({ haggle, askingPrice }: HaggleModePanelProps) {
           <PriceRow label="Walk-away price" value={haggle.walkAwayPrice} />
         </div>
 
+        {haggle.negotiationNotes.length > 0 && (
+          <div className="space-y-1.5 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+            <p className="text-xs font-medium text-sky-300">
+              Category negotiation leverage
+            </p>
+            <ul className="space-y-1 text-xs text-muted-foreground">
+              {haggle.negotiationNotes.map((note) => (
+                <li key={note} className="leading-relaxed">
+                  {note}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">
             Copy-paste scripts

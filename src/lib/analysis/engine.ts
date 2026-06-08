@@ -1,3 +1,4 @@
+import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
 import { resolveDeal } from "@/lib/analysis/resale-estimate";
 import type {
   DealAnalysis,
@@ -108,7 +109,10 @@ function calculateRoiPercent(
   return (profit / askingPrice) * 100;
 }
 
-function calculateRiskScore(resolved: ResolvedDeal): number {
+function calculateRiskScore(
+  resolved: ResolvedDeal,
+  categoryRiskAdjustment = 0
+): number {
   const { input, effectiveResaleValue, resaleEstimate } = resolved;
   const profit = calculatePotentialProfit(input.askingPrice, effectiveResaleValue);
   const roi = calculateRoiPercent(input.askingPrice, effectiveResaleValue);
@@ -134,6 +138,8 @@ function calculateRiskScore(resolved: ResolvedDeal): number {
   } else if (resaleEstimate.source === "comps") {
     if (resaleEstimate.confidence === "low") risk += 0.5;
   }
+
+  risk += categoryRiskAdjustment;
 
   return clamp(Math.round(risk), 1, 10);
 }
@@ -179,7 +185,10 @@ function calculateTimeToSellDays(resolved: ResolvedDeal): number {
   return Math.round(days);
 }
 
-export function analyzeResolved(resolved: ResolvedDeal): DealAnalysis {
+export function analyzeResolved(
+  resolved: ResolvedDeal,
+  categoryRiskAdjustment = 0
+): DealAnalysis {
   const { input, effectiveResaleValue, resaleEstimate } = resolved;
   const timeToSellDays = calculateTimeToSellDays(resolved);
 
@@ -189,7 +198,7 @@ export function analyzeResolved(resolved: ResolvedDeal): DealAnalysis {
       effectiveResaleValue
     ),
     roiPercent: calculateRoiPercent(input.askingPrice, effectiveResaleValue),
-    riskScore: calculateRiskScore(resolved),
+    riskScore: calculateRiskScore(resolved, categoryRiskAdjustment),
     flipScore: calculateFlipScore(resolved),
     timeToSellDays,
     timeToSellLabel: formatTimeToSell(timeToSellDays),
@@ -201,7 +210,12 @@ export function analyzeDeal(
   input: DealInput,
   options?: AnalysisOptions
 ): DealAnalysis {
-  return analyzeResolved(resolveDeal(input, options));
+  const categoryIntel =
+    options?.categoryIntel ??
+    buildCategoryIntelligence(input, options?.comps);
+  const resolved = resolveDeal(input, { ...options, categoryIntel });
+
+  return analyzeResolved(resolved, categoryIntel.riskAdjustment);
 }
 
 /** @deprecated Use effectiveResaleValue from resolveDeal() */

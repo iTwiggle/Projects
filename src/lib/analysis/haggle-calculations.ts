@@ -1,3 +1,4 @@
+import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
 import type {
   AskingPriceRating,
   HaggleGuide,
@@ -98,7 +99,8 @@ function buildScripts(
 export function calculateHaggleGuide(
   input: DealInput,
   analysis: DealAnalysis,
-  effectiveResaleValue: number
+  effectiveResaleValue: number,
+  categoryIntel?: CategoryIntelligence
 ): HaggleGuide {
   const feesRepairsBuffer = calculateFeesRepairsBuffer(
     effectiveResaleValue,
@@ -153,5 +155,6 @@ export function calculateHaggleGuide(
     askingPriceRatingLabel: `${ASKING_RATING_LABELS[askingPriceRating]} — ${RATING_DESCRIPTIONS[askingPriceRating]}`,
     currentRoiPercent: analysis.roiPercent,
     scripts,
+    negotiationNotes: categoryIntel?.negotiationLeverageNotes ?? [],
   };
 }

@@ -183,6 +183,27 @@ describe("getDealViewModel", () => {
     expect(preview.display.resaleSourceLabel).toBe("User comps");
   });
 
+  it("includes category intelligence in view model", () => {
+    const vm = getDealViewModel(
+      makeSavedDeal({
+        itemName: "iPhone 12",
+        notes: "iCloud locked, cracked screen",
+      })
+    );
+
+    expect(vm.categoryIntel.intelligence.intelligenceCategory).toBe(
+      "Electronics"
+    );
+    expect(vm.categoryIntel.inspectionChecklist.length).toBeGreaterThan(0);
+    expect(
+      vm.display.warnings.some((w) => w.includes("Category risk"))
+    ).toBe(true);
+    expect(vm.haggle.negotiationNotes.length).toBeGreaterThan(0);
+    expect(
+      vm.verdict.reasoning.some((line) => line.includes("Category risk"))
+    ).toBe(true);
+  });
+
   it("warns when mostly listed comps drive the estimate", () => {
     const deal = makeSavedDeal({
       comps: [

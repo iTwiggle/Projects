@@ -1,3 +1,4 @@
+import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
 import type { DealCondition, EstimateConfidence } from "@/lib/types/deal";
 
 export const COMP_PLATFORMS = [
@@ -38,6 +39,7 @@ export interface CompSummary {
 export interface AnalysisOptions {
   comps?: ComparableSale[];
   useCompsForResale?: boolean;
+  categoryIntel?: CategoryIntelligence;
 }
 
 export const MIN_COMPS_FOR_ESTIMATE = 3;

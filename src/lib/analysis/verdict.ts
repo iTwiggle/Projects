@@ -1,3 +1,4 @@
+import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
 import type { DealAnalysis, DealInput, GoblinVerdict } from "@/lib/types/deal";
 
 function estimateDisclaimer(analysis: DealAnalysis): string | null {
@@ -5,9 +6,39 @@ function estimateDisclaimer(analysis: DealAnalysis): string | null {
   return "Based on a fast rough estimate — verify sold comps before buying.";
 }
 
+function appendCategoryReasoning(
+  reasons: string[],
+  categoryIntel?: CategoryIntelligence
+): string[] {
+  if (!categoryIntel) return reasons;
+
+  const merged = [...reasons];
+
+  for (const risk of categoryIntel.matchedRisks.slice(0, 2)) {
+    merged.push(`Category risk (${categoryIntel.intelligenceCategory}): ${risk.message}`);
+  }
+
+  for (const booster of categoryIntel.matchedBoosters.slice(0, 1)) {
+    merged.push(`Value booster: ${booster.message}`);
+  }
+
+  if (categoryIntel.matchedPenalties.length > 0) {
+    merged.push(
+      `Watch for: ${categoryIntel.matchedPenalties[0].label.toLowerCase()} — ${categoryIntel.matchedPenalties[0].message}`
+    );
+  }
+
+  if (categoryIntel.resaleSpeedNotes[0]) {
+    merged.push(categoryIntel.resaleSpeedNotes[0]);
+  }
+
+  return merged;
+}
+
 function buildApprovedReasoning(
   input: DealInput,
-  analysis: DealAnalysis
+  analysis: DealAnalysis,
+  categoryIntel?: CategoryIntelligence
 ): string[] {
   const reasons: string[] = [];
 
@@ -34,12 +65,13 @@ function buildApprovedReasoning(
   const disclaimer = estimateDisclaimer(analysis);
   if (disclaimer) reasons.push(disclaimer);
 
-  return reasons;
+  return appendCategoryReasoning(reasons, categoryIntel);
 }
 
 function buildCautionReasoning(
   input: DealInput,
-  analysis: DealAnalysis
+  analysis: DealAnalysis,
+  categoryIntel?: CategoryIntelligence
 ): string[] {
   const reasons: string[] = [];
 
@@ -94,12 +126,13 @@ function buildCautionReasoning(
     );
   }
 
-  return reasons;
+  return appendCategoryReasoning(reasons, categoryIntel);
 }
 
 function buildRejectReasoning(
   input: DealInput,
-  analysis: DealAnalysis
+  analysis: DealAnalysis,
+  categoryIntel?: CategoryIntelligence
 ): string[] {
   const reasons: string[] = [];
 
@@ -142,12 +175,13 @@ function buildRejectReasoning(
     reasons.push("The numbers don't support this purchase — keep hunting.");
   }
 
-  return reasons;
+  return appendCategoryReasoning(reasons, categoryIntel);
 }
 
 export function getGoblinVerdict(
   input: DealInput,
-  analysis: DealAnalysis
+  analysis: DealAnalysis,
+  categoryIntel?: CategoryIntelligence
 ): GoblinVerdict {
   const { potentialProfit, roiPercent, riskScore, flipScore } = analysis;
 
@@ -169,7 +203,7 @@ export function getGoblinVerdict(
       type: "approved",
       label: "Goblin Approved",
       emoji: "🟢",
-      reasoning: buildApprovedReasoning(input, analysis),
+      reasoning: buildApprovedReasoning(input, analysis, categoryIntel),
     };
   }
 
@@ -178,7 +212,7 @@ export function getGoblinVerdict(
       type: "reject",
       label: "Leave It In The Cave",
       emoji: "🔴",
-      reasoning: buildRejectReasoning(input, analysis),
+      reasoning: buildRejectReasoning(input, analysis, categoryIntel),
     };
   }
 
@@ -186,6 +220,6 @@ export function getGoblinVerdict(
     type: "caution",
     label: "Proceed With Caution",
     emoji: "🟡",
-    reasoning: buildCautionReasoning(input, analysis),
+    reasoning: buildCautionReasoning(input, analysis, categoryIntel),
   };
 }

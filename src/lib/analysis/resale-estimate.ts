@@ -1,4 +1,8 @@
 import {
+  applyConfidenceAdjustment,
+  buildCategoryIntelligence,
+} from "@/lib/analysis/category-intelligence";
+import {
   buildResaleEstimateFromComps,
   calculateCompSummary,
   canUseCompsAsEstimate,
@@ -148,11 +152,21 @@ function spreadForConfidence(
   };
 }
 
-function estimateFromSignals(input: DealInput): ResaleEstimate {
+function estimateFromSignals(
+  input: DealInput,
+  options?: AnalysisOptions
+): ResaleEstimate {
   const categoryMultiplier = CATEGORY_RESALE_MULTIPLIER[input.category];
   const conditionFactor = CONDITION_RESALE_FACTOR[input.condition];
   const detailScore = scoreItemDetail(input);
-  const confidence = confidenceFromDetailScore(detailScore);
+  const categoryIntel =
+    options?.categoryIntel ??
+    buildCategoryIntelligence(input, options?.comps);
+  const baseConfidence = confidenceFromDetailScore(detailScore);
+  const confidence = applyConfidenceAdjustment(
+    baseConfidence,
+    categoryIntel.confidenceAdjustment
+  );
 
   const anchor =
     input.askingPrice > 0
@@ -196,16 +210,32 @@ export function buildResaleEstimate(
     };
   }
 
+  const categoryIntel =
+    options?.categoryIntel ??
+    buildCategoryIntelligence(input, options?.comps);
+
   if (
     options?.useCompsForResale &&
     options.comps &&
     canUseCompsAsEstimate(options.comps)
   ) {
     const summary = calculateCompSummary(options.comps);
-    if (summary) return buildResaleEstimateFromComps(summary);
+    if (summary) {
+      const estimate = buildResaleEstimateFromComps(summary);
+      if (categoryIntel.confidenceAdjustment !== "none") {
+        return {
+          ...estimate,
+          confidence: applyConfidenceAdjustment(
+            estimate.confidence,
+            categoryIntel.confidenceAdjustment
+          ),
+        };
+      }
+      return estimate;
+    }
   }
 
-  return estimateFromSignals(input);
+  return estimateFromSignals(input, { ...options, categoryIntel });
 }
 
 export function resolveDeal(

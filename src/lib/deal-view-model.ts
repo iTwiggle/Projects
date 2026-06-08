@@ -1,3 +1,4 @@
+import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { calculateCompSummary } from "@/lib/analysis/comp-calculations";
 import { calculateHaggleGuide } from "@/lib/analysis/haggle-calculations";
@@ -21,6 +22,7 @@ import type {
 } from "@/lib/types/deal";
 import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
 import type { ComparableSale } from "@/lib/types/comps";
+import type { CategoryIntelligence } from "@/lib/types/category-intelligence";
 import type { HaggleGuide } from "@/lib/types/haggle";
 import { resolveListingLink } from "@/lib/intake/listing-url";
 import type { ListingLinkInfo } from "@/lib/types/listing-url";
@@ -46,6 +48,12 @@ export interface DealViewModelDisplay {
   showResaleRange: boolean;
   profitPositive: boolean;
   warnings: string[];
+  advice: string[];
+}
+
+export interface DealViewModelCategoryIntel {
+  intelligence: CategoryIntelligence;
+  inspectionChecklist: string[];
 }
 
 export interface DealViewModel {
@@ -62,6 +70,7 @@ export interface DealViewModel {
   display: DealViewModelDisplay;
   haggle: HaggleGuide;
   listing: ListingLinkInfo;
+  categoryIntel: DealViewModelCategoryIntel;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -82,9 +91,10 @@ function buildWarnings(
   input: DealInput,
   analysis: DealAnalysis,
   useCompsForResale: boolean,
-  compSummary: CompSummary | null
+  compSummary: CompSummary | null,
+  categoryIntel: CategoryIntelligence
 ): string[] {
-  const warnings: string[] = [];
+  const warnings: string[] = [...categoryIntel.warnings];
   const { resaleEstimate } = analysis;
 
   if (hasManualResaleValue(input) && useCompsForResale) {
@@ -121,7 +131,8 @@ function buildDisplay(
   analysis: DealAnalysis,
   verdict: GoblinVerdict,
   useCompsForResale: boolean,
-  compSummary: CompSummary | null
+  compSummary: CompSummary | null,
+  categoryIntel: CategoryIntelligence
 ): DealViewModelDisplay {
   const estimate = analysis.resaleEstimate;
   const { resaleDisplay, showResaleRange } = buildResaleDisplay(estimate);
@@ -134,7 +145,14 @@ function buildDisplay(
     resaleDisplay,
     showResaleRange,
     profitPositive: analysis.potentialProfit >= 0,
-    warnings: buildWarnings(input, analysis, useCompsForResale, compSummary),
+    warnings: buildWarnings(
+      input,
+      analysis,
+      useCompsForResale,
+      compSummary,
+      categoryIntel
+    ),
+    advice: categoryIntel.advice,
   };
 }
 
@@ -144,22 +162,25 @@ function buildDealViewModel(
   useCompsForResale: boolean,
   meta: { id: string; createdAt: string; updatedAt: string }
 ): DealViewModel {
-  const analysisOptions = { comps, useCompsForResale };
+  const categoryIntel = buildCategoryIntelligence(input, comps);
+  const analysisOptions = { comps, useCompsForResale, categoryIntel };
   const resolved = resolveDeal(input, analysisOptions);
   const analysis = analyzeDeal(input, analysisOptions);
-  const verdict = getGoblinVerdict(input, analysis);
+  const verdict = getGoblinVerdict(input, analysis, categoryIntel);
   const compSummary = calculateCompSummary(comps);
   const display = buildDisplay(
     input,
     analysis,
     verdict,
     useCompsForResale,
-    compSummary
+    compSummary,
+    categoryIntel
   );
   const haggle = calculateHaggleGuide(
     input,
     analysis,
-    resolved.effectiveResaleValue
+    resolved.effectiveResaleValue,
+    categoryIntel
   );
   const listing = resolveListingLink(input.listingUrl);
 
@@ -177,6 +198,10 @@ function buildDealViewModel(
     display,
     haggle,
     listing,
+    categoryIntel: {
+      intelligence: categoryIntel,
+      inspectionChecklist: categoryIntel.inspectionChecklist,
+    },
   };
 }
 
