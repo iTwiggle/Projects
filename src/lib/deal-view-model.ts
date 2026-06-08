@@ -1,0 +1,158 @@
+import { analyzeDeal } from "@/lib/analysis/engine";
+import { calculateCompSummary } from "@/lib/analysis/comp-calculations";
+import {
+  getConfidenceLabel,
+  getResaleSourceLabel,
+  resolveDeal,
+} from "@/lib/analysis/resale-estimate";
+import { getGoblinVerdict } from "@/lib/analysis/verdict";
+import { formatCurrency } from "@/lib/format";
+import type { CompSummary } from "@/lib/types/comps";
+import type {
+  DealAnalysis,
+  DealInput,
+  EstimateConfidence,
+  GoblinVerdict,
+  ResolvedDeal,
+  ResaleEstimate,
+  SavedDeal,
+  VerdictType,
+} from "@/lib/types/deal";
+import { normalizeDealInput } from "@/lib/types/deal";
+
+export const VERDICT_BADGE_STYLES: Record<VerdictType, string> = {
+  approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  caution: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  reject: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+};
+
+export const CONFIDENCE_TEXT_STYLES: Record<EstimateConfidence, string> = {
+  low: "text-rose-400",
+  medium: "text-amber-400",
+  high: "text-emerald-400",
+};
+
+export interface DealViewModelDisplay {
+  resaleSourceLabel: string;
+  confidenceLabel: string;
+  verdictBadgeClassName: string;
+  confidenceTextClassName: string;
+  resaleDisplay: string;
+  showResaleRange: boolean;
+  profitPositive: boolean;
+  warnings: string[];
+}
+
+export interface DealViewModel {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  input: DealInput;
+  comps: SavedDeal["comps"];
+  useCompsForResale: boolean;
+  compSummary: CompSummary | null;
+  resolved: ResolvedDeal;
+  analysis: DealAnalysis;
+  verdict: GoblinVerdict;
+  display: DealViewModelDisplay;
+}
+
+function buildResaleDisplay(estimate: ResaleEstimate): {
+  resaleDisplay: string;
+  showResaleRange: boolean;
+} {
+  const showResaleRange =
+    estimate.low !== estimate.high && estimate.source !== "manual";
+
+  const resaleDisplay = showResaleRange
+    ? `${formatCurrency(estimate.low)}–${formatCurrency(estimate.high)}`
+    : formatCurrency(estimate.midpoint);
+
+  return { resaleDisplay, showResaleRange };
+}
+
+function buildWarnings(
+  analysis: DealAnalysis,
+  useCompsForResale: boolean,
+  compSummary: CompSummary | null
+): string[] {
+  const warnings: string[] = [];
+  const { resaleEstimate } = analysis;
+
+  if (resaleEstimate.source === "estimated") {
+    warnings.push(
+      "Fast triage only. Verify comps before buying."
+    );
+  }
+
+  if (resaleEstimate.source === "comps") {
+    warnings.push(
+      "Resale estimate uses the median of your comparable sales."
+    );
+  }
+
+  if (
+    useCompsForResale &&
+    compSummary &&
+    compSummary.listedCount > compSummary.soldCount
+  ) {
+    warnings.push(
+      "Mostly listed comps — sold prices are usually more reliable."
+    );
+  }
+
+  return warnings;
+}
+
+function buildDisplay(
+  analysis: DealAnalysis,
+  verdict: GoblinVerdict,
+  useCompsForResale: boolean,
+  compSummary: CompSummary | null
+): DealViewModelDisplay {
+  const estimate = analysis.resaleEstimate;
+  const { resaleDisplay, showResaleRange } = buildResaleDisplay(estimate);
+
+  return {
+    resaleSourceLabel: getResaleSourceLabel(estimate.source),
+    confidenceLabel: getConfidenceLabel(estimate.confidence),
+    verdictBadgeClassName: VERDICT_BADGE_STYLES[verdict.type],
+    confidenceTextClassName: CONFIDENCE_TEXT_STYLES[estimate.confidence],
+    resaleDisplay,
+    showResaleRange,
+    profitPositive: analysis.potentialProfit >= 0,
+    warnings: buildWarnings(analysis, useCompsForResale, compSummary),
+  };
+}
+
+/** Single source of truth for derived deal data shown in the UI. */
+export function getDealViewModel(deal: SavedDeal): DealViewModel {
+  const input = normalizeDealInput(deal);
+  const comps = deal.comps ?? [];
+  const useCompsForResale = deal.useCompsForResale === true;
+  const analysisOptions = { comps, useCompsForResale };
+
+  const resolved = resolveDeal(input, analysisOptions);
+  const analysis = analyzeDeal(input, analysisOptions);
+  const verdict = getGoblinVerdict(input, analysis);
+  const compSummary = calculateCompSummary(comps);
+  const display = buildDisplay(analysis, verdict, useCompsForResale, compSummary);
+
+  return {
+    id: deal.id,
+    createdAt: deal.createdAt,
+    updatedAt: deal.updatedAt,
+    input,
+    comps,
+    useCompsForResale,
+    compSummary,
+    resolved,
+    analysis,
+    verdict,
+    display,
+  };
+}
+
+export function getDealViewModels(deals: SavedDeal[]): DealViewModel[] {
+  return deals.map(getDealViewModel);
+}

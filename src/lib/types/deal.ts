@@ -82,11 +82,16 @@ export interface SavedDeal extends DealInput {
   useCompsForResale: boolean;
 }
 
+export interface DashboardBestDeal {
+  itemName: string;
+  potentialProfit: number;
+}
+
 export interface DashboardStats {
   totalDeals: number;
   totalPotentialProfit: number;
   averageRoi: number;
-  bestDeal: SavedDeal | null;
+  bestDeal: DashboardBestDeal | null;
 }
 
 export const EMPTY_DEAL_INPUT: DealInput = {

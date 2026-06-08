@@ -64,7 +64,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
         label="Best Deal"
         value={
           stats.bestDeal
-            ? formatCurrency(stats.bestDeal.analysis.potentialProfit)
+            ? formatCurrency(stats.bestDeal.potentialProfit)
             : "—"
         }
         detail={stats.bestDeal?.itemName ?? "No deals yet"}

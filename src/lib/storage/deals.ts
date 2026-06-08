@@ -1,9 +1,9 @@
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { getGoblinVerdict } from "@/lib/analysis/verdict";
+import { getDealViewModel } from "@/lib/deal-view-model";
 import type { ComparableSale } from "@/lib/types/comps";
 import type {
   DashboardStats,
-  DealAnalysis,
   DealInput,
   LegacyDealFields,
   SavedDeal,
@@ -33,24 +33,11 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function isValidAnalysis(value: unknown): value is DealAnalysis {
-  if (!value || typeof value !== "object") return false;
-  const analysis = value as DealAnalysis;
-  return (
-    typeof analysis.potentialProfit === "number" &&
-    typeof analysis.roiPercent === "number" &&
-    typeof analysis.riskScore === "number" &&
-    typeof analysis.flipScore === "number"
-  );
-}
-
 function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>): SavedDeal | null {
   if (
     typeof raw.id !== "string" ||
     typeof raw.itemName !== "string" ||
-    typeof raw.askingPrice !== "number" ||
-    !isValidAnalysis(raw.analysis) ||
-    !raw.verdict
+    typeof raw.askingPrice !== "number"
   ) {
     return null;
   }
@@ -59,11 +46,10 @@ function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>
   const comps = normalizeComps(raw.comps);
   const useCompsForResale = raw.useCompsForResale === true;
   const analysisOptions = { comps, useCompsForResale };
-  const analysis =
-    raw.analysis?.resaleEstimate !== undefined && !useCompsForResale
-      ? raw.analysis
-      : analyzeDeal(input, analysisOptions);
-  const verdict = raw.verdict ?? getGoblinVerdict(input, analysis);
+
+  // Refresh cached analysis/verdict from inputs on load; UI reads via getDealViewModel.
+  const analysis = analyzeDeal(input, analysisOptions);
+  const verdict = getGoblinVerdict(input, analysis);
 
   return {
     ...input,
@@ -191,26 +177,36 @@ export function calculateDashboardStats(deals: SavedDeal[]): DashboardStats {
     };
   }
 
-  const totalPotentialProfit = deals.reduce(
-    (sum, deal) => sum + deal.analysis.potentialProfit,
+  const viewModels = deals.map(getDealViewModel);
+
+  const totalPotentialProfit = viewModels.reduce(
+    (sum, vm) => sum + vm.analysis.potentialProfit,
     0
   );
 
   const averageRoi =
-    deals.reduce((sum, deal) => sum + deal.analysis.roiPercent, 0) /
-    deals.length;
+    viewModels.reduce((sum, vm) => sum + vm.analysis.roiPercent, 0) /
+    viewModels.length;
 
-  const bestDeal = deals.reduce<SavedDeal | null>((best, deal) => {
-    if (!best) return deal;
-    return deal.analysis.potentialProfit > best.analysis.potentialProfit
-      ? deal
-      : best;
-  }, null);
+  const best = viewModels.reduce<(typeof viewModels)[number] | null>(
+    (current, vm) => {
+      if (!current) return vm;
+      return vm.analysis.potentialProfit > current.analysis.potentialProfit
+        ? vm
+        : current;
+    },
+    null
+  );
 
   return {
     totalDeals: deals.length,
     totalPotentialProfit,
     averageRoi,
-    bestDeal,
+    bestDeal: best
+      ? {
+          itemName: best.input.itemName,
+          potentialProfit: best.analysis.potentialProfit,
+        }
+      : null,
   };
 }

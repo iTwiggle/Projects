@@ -1,7 +1,6 @@
 "use client";
 
-import { analyzeDeal } from "@/lib/analysis/engine";
-import { getGoblinVerdict } from "@/lib/analysis/verdict";
+import { getDealViewModel } from "@/lib/deal-view-model";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { SavedDeal } from "@/lib/types/deal";
@@ -29,71 +28,61 @@ interface DealDetailDialogProps {
   ) => void;
 }
 
-const verdictBadgeStyles = {
-  approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  caution: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  reject: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-};
-
 export function DealDetailDialog({
   deal,
   onClose,
   onCompsChange,
 }: DealDetailDialogProps) {
-  const analysisOptions = deal
-    ? { comps: deal.comps, useCompsForResale: deal.useCompsForResale }
-    : undefined;
-  const analysis = deal && analysisOptions ? analyzeDeal(deal, analysisOptions) : null;
-  const verdict =
-    deal && analysis ? getGoblinVerdict(deal, analysis) : null;
+  const vm = deal ? getDealViewModel(deal) : null;
 
   return (
     <Dialog open={!!deal} onOpenChange={(open) => !open && onClose()}>
-      {deal && analysis && verdict && (
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="pr-6">{deal.itemName}</DialogTitle>
-          <DialogDescription>
-            {deal.category} · {deal.condition} · Saved {formatDate(deal.updatedAt)}
-          </DialogDescription>
-        </DialogHeader>
+      {deal && vm && (
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="pr-6">{vm.input.itemName}</DialogTitle>
+            <DialogDescription>
+              {vm.input.category} · {vm.input.condition} · Saved{" "}
+              {formatDate(vm.updatedAt)}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={cn(verdictBadgeStyles[verdict.type])}
-            >
-              {verdict.emoji} {verdict.label}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              Ask {formatCurrency(deal.askingPrice)}
-            </span>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className={cn(vm.display.verdictBadgeClassName)}
+              >
+                {vm.verdict.emoji} {vm.verdict.label}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                Ask {formatCurrency(vm.input.askingPrice)}
+              </span>
+            </div>
+
+            <ComparableSalesPanel
+              comps={vm.comps}
+              useCompsForResale={vm.useCompsForResale}
+              persisted
+              onCompsChange={(comps) =>
+                onCompsChange(deal.id, comps, vm.useCompsForResale)
+              }
+              onUseCompsChange={(useCompsForResale) =>
+                onCompsChange(deal.id, vm.comps, useCompsForResale)
+              }
+            />
+
+            <ResaleEstimatePanel estimate={vm.analysis.resaleEstimate} />
+            <AnalysisMetrics analysis={vm.analysis} />
+            <GoblinVerdict verdict={vm.verdict} />
+
+            {vm.input.notes && (
+              <p className="rounded-lg bg-background/60 p-3 text-xs text-muted-foreground">
+                {vm.input.notes}
+              </p>
+            )}
           </div>
-
-          <ComparableSalesPanel
-            comps={deal.comps}
-            useCompsForResale={deal.useCompsForResale}
-            persisted
-            onCompsChange={(comps) =>
-              onCompsChange(deal.id, comps, deal.useCompsForResale)
-            }
-            onUseCompsChange={(useCompsForResale) =>
-              onCompsChange(deal.id, deal.comps, useCompsForResale)
-            }
-          />
-
-          <ResaleEstimatePanel estimate={analysis.resaleEstimate} />
-          <AnalysisMetrics analysis={analysis} />
-          <GoblinVerdict verdict={verdict} />
-
-          {deal.notes && (
-            <p className="rounded-lg bg-background/60 p-3 text-xs text-muted-foreground">
-              {deal.notes}
-            </p>
-          )}
-        </div>
-      </DialogContent>
+        </DialogContent>
       )}
     </Dialog>
   );

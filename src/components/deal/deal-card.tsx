@@ -15,10 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  getConfidenceLabel,
-  getResaleSourceLabel,
-} from "@/lib/analysis/resale-estimate";
+import { getDealViewModel } from "@/lib/deal-view-model";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import type { SavedDeal } from "@/lib/types/deal";
 import { cn } from "@/lib/utils";
@@ -30,96 +27,69 @@ interface DealCardProps {
   onDelete: (id: string) => void;
 }
 
-const verdictBadgeStyles = {
-  approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  caution: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  reject: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-};
-
-const confidenceStyles = {
-  low: "text-rose-400",
-  medium: "text-amber-400",
-  high: "text-emerald-400",
-};
-
 export function DealCard({ deal, onView, onEdit, onDelete }: DealCardProps) {
-  const profitPositive = deal.analysis.potentialProfit >= 0;
-  const estimate = deal.analysis.resaleEstimate;
-  const showResaleRange =
-    estimate &&
-    estimate.low !== estimate.high &&
-    estimate.source !== "manual";
-
-  const resaleDisplay = estimate
-    ? showResaleRange
-      ? `${formatCurrency(estimate.low)}–${formatCurrency(estimate.high)}`
-      : formatCurrency(estimate.midpoint)
-    : formatCurrency(deal.knownResaleValue ?? 0);
+  const vm = getDealViewModel(deal);
+  const { analysis, verdict, display, input } = vm;
 
   return (
     <Card className="border-border/50 bg-card/60">
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
         <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-base">{deal.itemName}</CardTitle>
+          <CardTitle className="truncate text-base">{input.itemName}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            {deal.category} · {formatDate(deal.updatedAt)}
+            {input.category} · {formatDate(vm.updatedAt)}
           </p>
         </div>
         <Badge
           variant="outline"
-          className={cn("shrink-0", verdictBadgeStyles[deal.verdict.type])}
+          className={cn("shrink-0", display.verdictBadgeClassName)}
         >
-          {deal.verdict.emoji} {deal.verdict.label}
+          {verdict.emoji} {verdict.label}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
-        {estimate && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="text-[10px]">
-              {getResaleSourceLabel(estimate.source)}
-            </Badge>
-            <span
-              className={cn(
-                "text-[10px]",
-                confidenceStyles[estimate.confidence]
-              )}
-            >
-              {getConfidenceLabel(estimate.confidence)}
-            </span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="text-[10px]">
+            {display.resaleSourceLabel}
+          </Badge>
+          <span
+            className={cn("text-[10px]", display.confidenceTextClassName)}
+          >
+            {display.confidenceLabel}
+          </span>
+        </div>
 
         <div className="grid grid-cols-3 gap-2 text-center text-sm">
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Ask</p>
-            <p className="font-medium">{formatCurrency(deal.askingPrice)}</p>
+            <p className="font-medium">{formatCurrency(input.askingPrice)}</p>
           </div>
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Resale</p>
-            <p className="font-medium">{resaleDisplay}</p>
+            <p className="font-medium">{display.resaleDisplay}</p>
           </div>
           <div className="rounded-lg bg-background/60 p-2">
             <p className="text-xs text-muted-foreground">Profit</p>
             <p
               className={cn(
                 "font-medium",
-                profitPositive ? "text-emerald-400" : "text-rose-400"
+                display.profitPositive ? "text-emerald-400" : "text-rose-400"
               )}
             >
-              {formatCurrency(deal.analysis.potentialProfit)}
+              {formatCurrency(analysis.potentialProfit)}
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>ROI {formatPercent(deal.analysis.roiPercent)}</span>
-          <span>Flip {deal.analysis.flipScore}/10</span>
-          <span>Risk {deal.analysis.riskScore}/10</span>
+          <span>ROI {formatPercent(analysis.roiPercent)}</span>
+          <span>Flip {analysis.flipScore}/10</span>
+          <span>Risk {analysis.riskScore}/10</span>
         </div>
 
-        {deal.notes && (
+        {input.notes && (
           <p className="line-clamp-2 text-xs text-muted-foreground">
-            {deal.notes}
+            {input.notes}
           </p>
         )}
 
@@ -159,7 +129,7 @@ export function DealCard({ deal, onView, onEdit, onDelete }: DealCardProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete this deal?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  &ldquo;{deal.itemName}&rdquo; will be removed from your saved
+                  &ldquo;{input.itemName}&rdquo; will be removed from your saved
                   deals. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
