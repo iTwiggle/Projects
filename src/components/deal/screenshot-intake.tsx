@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, FileImage, ScanText, X } from "lucide-react";
+import { Camera, FileImage, Loader2, ScanLine, ScanText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,10 +21,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  DEAL_CATEGORIES,
-  DEAL_CONDITIONS,
-  type DealInput,
-} from "@/lib/types/deal";
+  extractTextFromScreenshot,
+  isOcrAvailable,
+  type OcrProgress,
+} from "@/lib/intake/screenshot-ocr";
 import {
   DEFAULT_EXTRACTED,
   type ExtractedListingFields,
@@ -32,6 +32,9 @@ import {
   isExtractedEmpty,
   parseListingText,
 } from "@/lib/intake/listing-parser";
+import type { DealInput } from "@/lib/types/deal";
+import { DEAL_CATEGORIES, DEAL_CONDITIONS } from "@/lib/types/deal";
+import { cn } from "@/lib/utils";
 
 interface ScreenshotIntakeProps {
   onRequestFill: (proposed: Partial<DealInput>) => void;
@@ -39,17 +42,33 @@ interface ScreenshotIntakeProps {
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 
+const IDLE_OCR_PROGRESS: OcrProgress = {
+  status: "idle",
+  progress: 0,
+  message: "",
+};
+
 export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ocrAbortRef = useRef(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [listingText, setListingText] = useState("");
   const [extracted, setExtracted] = useState<ExtractedListingFields>({
     ...DEFAULT_EXTRACTED,
   });
   const [hasParsed, setHasParsed] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<OcrProgress>(IDLE_OCR_PROGRESS);
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
+  const [ocrSupported] = useState(() => isOcrAvailable());
+
+  const isOcrRunning =
+    ocrProgress.status === "checking" ||
+    ocrProgress.status === "loading" ||
+    ocrProgress.status === "recognizing";
 
   useEffect(() => {
     return () => {
+      ocrAbortRef.current = true;
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
@@ -62,12 +81,52 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
 
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     setImagePreviewUrl(URL.createObjectURL(file));
+    setOcrProgress(IDLE_OCR_PROGRESS);
+    setOcrNotice(null);
+    setHasParsed(false);
     e.target.value = "";
   }
 
   function clearImage() {
+    ocrAbortRef.current = true;
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     setImagePreviewUrl(null);
+    setOcrProgress(IDLE_OCR_PROGRESS);
+    setOcrNotice(null);
+  }
+
+  async function handleOcrExtract() {
+    if (!imagePreviewUrl || isOcrRunning) return;
+
+    ocrAbortRef.current = false;
+    setOcrNotice(null);
+    setOcrProgress({
+      status: "checking",
+      progress: 0,
+      message: "Preparing goblin vision...",
+    });
+
+    const result = await extractTextFromScreenshot(imagePreviewUrl, (update) => {
+      if (!ocrAbortRef.current) setOcrProgress(update);
+    });
+
+    if (ocrAbortRef.current) return;
+
+    if ("fallback" in result) {
+      setOcrProgress({
+        status: "error",
+        progress: 0,
+        message: result.message,
+      });
+      setOcrNotice(result.message);
+      return;
+    }
+
+    setListingText(result.text);
+    setHasParsed(false);
+    setOcrNotice(
+      "OCR text loaded below — review, edit, then extract fields or fill the form."
+    );
   }
 
   function handleParseText() {
@@ -104,8 +163,8 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
           Upload Screenshot
         </CardTitle>
         <CardDescription>
-          Drop in a Marketplace screenshot, paste the listing text, confirm the
-          fields, then fill the analyze form. Image stays in memory only.
+          Upload a listing screenshot, extract text with goblin OCR, review it,
+          then fill the analyze form. Image stays in memory only.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -128,6 +187,7 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
                     variant="outline"
                     size="sm"
                     onClick={clearImage}
+                    disabled={isOcrRunning}
                   >
                     <X className="size-3.5" aria-hidden />
                     Clear
@@ -137,13 +197,60 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
             </div>
 
             {imagePreviewUrl ? (
-              <div className="overflow-hidden rounded-xl border border-border/60 bg-background/40">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreviewUrl}
-                  alt="Uploaded listing screenshot preview"
-                  className="max-h-64 w-full object-contain"
-                />
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-border/60 bg-background/40">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewUrl}
+                    alt="Uploaded listing screenshot preview"
+                    className="max-h-64 w-full object-contain"
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={handleOcrExtract}
+                  disabled={isOcrRunning}
+                >
+                  {isOcrRunning ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <ScanLine className="size-3.5" aria-hidden />
+                  )}
+                  Extract Text from Screenshot
+                </Button>
+
+                {isOcrRunning && (
+                  <div className="space-y-2 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        {ocrProgress.message}
+                      </span>
+                      <span className="font-medium text-sky-400">
+                        {Math.round(ocrProgress.progress * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-background/60">
+                      <div
+                        className="h-full rounded-full bg-sky-500 transition-all duration-300"
+                        style={{
+                          width: `${Math.max(4, Math.round(ocrProgress.progress * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {ocrProgress.status === "done" && !isOcrRunning && (
+                  <p className="text-xs text-emerald-400">{ocrProgress.message}</p>
+                )}
+
+                {ocrProgress.status === "error" && ocrNotice && (
+                  <p className="text-xs text-amber-400">{ocrNotice}</p>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-background/30 px-4 py-10 text-center">
@@ -152,9 +259,16 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
                   aria-hidden
                 />
                 <p className="text-xs text-muted-foreground">
-                  Upload a screenshot for reference while you type
+                  Upload a screenshot, then extract text or paste manually
                 </p>
               </div>
+            )}
+
+            {!ocrSupported && (
+              <p className="text-xs text-muted-foreground">
+                OCR may be unavailable here — you can still paste listing text
+                manually.
+              </p>
             )}
           </div>
 
@@ -162,18 +276,26 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
             <Label htmlFor="listing-text">Paste listing text</Label>
             <Textarea
               id="listing-text"
-              placeholder={`Paste title, price, and description from the listing...\n\nExample:\nMakita 18V Drill Kit\n$45 · Good condition\nIncludes 2 batteries. Pickup only.`}
+              placeholder={`Paste or OCR listing text here...\n\nExample:\nMakita 18V Drill Kit\n$45 · Good condition\nIncludes 2 batteries. Pickup only.`}
               rows={10}
               value={listingText}
-              onChange={(e) => setListingText(e.target.value)}
+              onChange={(e) => {
+                setListingText(e.target.value);
+                setHasParsed(false);
+              }}
               className="min-h-[12rem]"
             />
+            {ocrNotice && ocrProgress.status !== "error" && (
+              <p className={cn("text-xs", "text-muted-foreground")}>
+                {ocrNotice}
+              </p>
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleParseText}
-              disabled={!listingText.trim()}
+              disabled={!listingText.trim() || isOcrRunning}
             >
               <ScanText className="size-3.5" aria-hidden />
               Extract Fields
@@ -272,7 +394,10 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
           <Button
             type="button"
             onClick={handleFillForm}
-            disabled={!listingText.trim() && isExtractedEmpty(extracted)}
+            disabled={
+              isOcrRunning ||
+              (!listingText.trim() && isExtractedEmpty(extracted))
+            }
             className="bg-sky-600 text-white hover:bg-sky-500"
           >
             Fill Analyze Form
