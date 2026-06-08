@@ -21,12 +21,17 @@ import {
   type PrefillableField,
 } from "@/lib/intake/listing-parser";
 import type { DealInput } from "@/lib/types/deal";
+import {
+  INTAKE_SOURCE_LABELS,
+  type IntakeExtractionSource,
+} from "@/lib/types/intake-source";
 
 interface PrefillConfirmDialogProps {
   open: boolean;
   current: DealInput;
   proposed: Partial<DealInput>;
   touchedFields: Set<PrefillableField>;
+  extractionSource?: IntakeExtractionSource;
   onConfirm: (merged: DealInput) => void;
   onCancel: () => void;
 }
@@ -36,6 +41,7 @@ export function PrefillConfirmDialog({
   current,
   proposed,
   touchedFields,
+  extractionSource,
   onConfirm,
   onCancel,
 }: PrefillConfirmDialogProps) {
@@ -69,6 +75,9 @@ export function PrefillConfirmDialog({
         <DialogHeader>
           <DialogTitle>Confirm form fill</DialogTitle>
           <DialogDescription>
+            {extractionSource
+              ? `Source: ${INTAKE_SOURCE_LABELS[extractionSource]}. `
+              : ""}
             Some analyze fields already have values. Choose which fields to
             overwrite. Resale value stays blank for Quick Estimate.
           </DialogDescription>

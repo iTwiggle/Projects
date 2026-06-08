@@ -1,76 +1,77 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Marketplace Link Intake v1)
+Last updated: 2026-06-08 (Listing Autofill v1)
 
 ## Product intent
 
-Help marketplace flippers appraise deals and negotiate with confidence. Client-only MVP — paste listing URLs, enter details, add comps, get haggle scripts. No backend, scraping, or AI APIs.
+Client-only marketplace flip assistant: appraise deals, add comps, haggle scripts, and **prefill from listing URLs** when the browser allows. No backend, proxies, scraping services, or paid APIs.
 
 ## Implemented features
 
-- Deal form + Quick Estimate + optional **listing URL**
-- Analysis engine, goblin verdict, Brain Mode
+- Deal form, Quick Estimate, analysis, verdict, Brain Mode
 - Screenshot Intake + OCR + listing parser
-- Manual Comparable Sales v1
-- Haggle Mode v1
-- **Marketplace Link Intake v1**
-  - Optional listing URL on deal form
-  - Stored on `SavedDeal` when valid (http/https)
-  - Platform badge: Facebook Marketplace, Craigslist, OfferUp, eBay, Unknown
-  - Deal Detail: URL display + **Open Listing** button
-  - Hostname detection only — no fetch/scrape
-- **`getDealViewModel()`** — includes `listing` metadata
+- Manual Comparable Sales + Haggle Mode
+- Marketplace Link Intake (store URL, platform badge, Open Listing)
+- **Listing Autofill v1**
+  - Paste URL → **Attempt Autofill** (browser `fetch`, CORS-only)
+  - Extract og/meta title, price, description, image URLs from HTML
+  - Feed text into existing `parseListingWithConfidence` pipeline
+  - Prefill confirm dialog (no overwrite without consent)
+  - Extraction source badges: **URL Autofill** | **OCR** | **Manual**
+  - Diagnostics on success/failure (incl. CORS blocked)
+- `getDealViewModel()` for derived UI data
 
 ## Architecture summary
 
 ```
-DealInput.listingUrl → normalizeDealInput → localStorage
-                      → resolveListingLink() → DealViewModel.listing → UI
+Listing URL → fetch (CORS) → HTML meta extract → parser text
+  → parseListingWithConfidence → review → PrefillConfirmDialog → DealForm
+
+Screenshot / paste → OCR or manual → same parser → same confirm flow
 ```
+
+Autofill never calls a backend. Fails gracefully when CORS blocks fetch.
 
 ## Data model summary
 
-**`DealInput` / `SavedDeal`** adds `listingUrl: string | null`.
+**`DealInput.listingUrl`** — optional, normalized on save.
 
-**`ListingLinkInfo`** (runtime): `url`, `isValid`, `hasLink`, `platform`, `platformLabel`, `hostname`.
-
-**`DealViewModel`** = prior fields + `listing`.
+**Intake sources** (`IntakeExtractionSource`): `url_autofill`, `ocr`, `manual` — UI only, not persisted.
 
 ## localStorage schema
 
-| Key | Value |
-|-----|-------|
-| `marketplace-goblin-deals` | `SavedDeal[]` JSON |
+Unchanged: `marketplace-goblin-deals` → `SavedDeal[]` with optional `listingUrl`.
 
-New field `listingUrl` optional; missing on legacy deals → `null` on load.
+## Key modules
 
-## Analysis pipeline
-
-Unchanged for resale/haggle. Listing link is display metadata only.
+| Module | Role |
+|--------|------|
+| `listing-url-fetch.ts` | Browser fetch + CORS failure messages |
+| `listing-html-extract.ts` | og:/meta/JSON-LD regex extraction |
+| `listing-autofill.ts` | Orchestrate fetch → extract → parser |
+| `listing-url-intake.tsx` | Autofill UI + diagnostics |
+| `listing-parser.ts` | Shared deterministic field parser |
 
 ## Known risks / technical debt
 
-- Platform detection is hostname/path heuristic (no scraping).
-- Invalid URLs typed in form are not persisted (normalized to `null`).
-- Generic Facebook URLs without `/marketplace` still map to Facebook Marketplace.
+- Most marketplace sites block CORS — autofill works only when allowed.
+- Price/title from generic meta; no page-specific scrapers.
+- Image URLs shown as previews only; not saved on deal.
 
 ## Recent changes
 
-- `listing-url.ts` validation + platform detection + tests
-- Deal form URL field with inline validation
-- `ListingLinkPanel` on Deal Detail
-- `DealViewModel.listing`
+- Listing Autofill v1 + intake source labels
+- URL field moved to `ListingUrlIntake` (synced with form state)
+- 47 unit tests passing
 
 ## Verification
 
 ```bash
-npm run test
-npm run build
-npm run lint
+npm run test && npm run build && npm run lint
 ```
 
-Manual: paste eBay URL on form → analyze → save → Detail shows badge + Open Listing.
+Manual: paste URL → Attempt Autofill → review fields → Fill Analyze Form → confirm conflicts.
 
 ## Recommended next step
 
-Show platform badge on **DealCard** when a listing URL exists, or parse URL query params for future prefill (still no scraping).
+Allow user to paste fetched HTML manually when CORS blocks (clipboard import path).

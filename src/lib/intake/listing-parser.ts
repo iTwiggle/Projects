@@ -297,7 +297,8 @@ export function parseListingText(text: string): ExtractedListingFields {
 }
 
 export function extractedToDealPartial(
-  extracted: ExtractedListingFields
+  extracted: ExtractedListingFields,
+  options?: { listingUrl?: string | null }
 ): Partial<import("@/lib/types/deal").DealInput> {
   return {
     itemName: extracted.itemName,
@@ -306,7 +307,7 @@ export function extractedToDealPartial(
     category: extracted.category,
     notes: extracted.notes,
     knownResaleValue: null,
-    listingUrl: null,
+    listingUrl: options?.listingUrl ?? null,
   };
 }
 

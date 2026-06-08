@@ -47,9 +47,13 @@ import {
 } from "@/lib/intake/listing-parser";
 import type { DealInput } from "@/lib/types/deal";
 import { DEAL_CATEGORIES, DEAL_CONDITIONS } from "@/lib/types/deal";
+import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 
 interface ScreenshotIntakeProps {
-  onRequestFill: (proposed: Partial<DealInput>) => void;
+  onRequestFill: (
+    proposed: Partial<DealInput>,
+    meta: { source: IntakeExtractionSource }
+  ) => void;
 }
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -77,6 +81,8 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
   const [ocrProgress, setOcrProgress] = useState<OcrProgress>(IDLE_OCR_PROGRESS);
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   const [cleanupNotice, setCleanupNotice] = useState<string | null>(null);
+  const [extractionSource, setExtractionSource] =
+    useState<IntakeExtractionSource>("manual");
   const [ocrSupported] = useState(() => isOcrAvailable());
 
   const isOcrRunning =
@@ -125,6 +131,7 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
     setOcrProgress(IDLE_OCR_PROGRESS);
     setOcrNotice(null);
     setCleanupNotice(null);
+    setExtractionSource("manual");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -162,6 +169,7 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
     setHasParsed(false);
     setShowOriginalOcr(false);
 
+    setExtractionSource("ocr");
     setOcrNotice(
       "OCR text loaded — review cleaned text below, then extract fields."
     );
@@ -177,6 +185,9 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
     setExtracted(parsed.fields);
     setConfidence(parsed.confidence);
     setHasParsed(true);
+    if (extractionSource !== "ocr") {
+      setExtractionSource("manual");
+    }
   }
 
   function updateExtracted<K extends keyof ExtractedListingFields>(
@@ -199,7 +210,9 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
     }
 
     if (isExtractedEmpty(result.fields)) return;
-    onRequestFill(extractedToDealPartial(result.fields));
+    onRequestFill(extractedToDealPartial(result.fields), {
+      source: extractionSource,
+    });
   }
 
   return (
@@ -368,6 +381,7 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
               onChange={(e) => {
                 setListingText(e.target.value);
                 setHasParsed(false);
+                if (!rawOcrText) setExtractionSource("manual");
               }}
               className="min-h-[11rem] sm:min-h-[12rem]"
             />
@@ -401,7 +415,10 @@ export function ScreenshotIntake({ onRequestFill }: ScreenshotIntakeProps) {
           <div className="space-y-4 rounded-xl border border-border/60 bg-background/30 p-4 sm:p-5">
             <div className="space-y-3">
               <p className="text-sm font-medium">Review & correct fields</p>
-              <ExtractionConfidenceBar confidence={confidence} />
+              <ExtractionConfidenceBar
+                confidence={confidence}
+                source={extractionSource}
+              />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

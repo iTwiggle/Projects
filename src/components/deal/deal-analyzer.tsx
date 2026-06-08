@@ -22,7 +22,9 @@ import { GoblinBrainMode } from "@/components/deal/goblin-brain-mode";
 import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { ScreenshotIntake } from "@/components/deal/screenshot-intake";
+import { ListingUrlIntake } from "@/components/deal/listing-url-intake";
 import { PrefillConfirmDialog } from "@/components/deal/prefill-confirm-dialog";
+import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 import type { BrainModeId } from "@/lib/types/brain-mode";
 import type { ComparableSale } from "@/lib/types/comps";
 import { EMPTY_DEAL_INPUT, type DealInput, type SavedDeal } from "@/lib/types/deal";
@@ -47,6 +49,8 @@ export function DealAnalyzer({
   const [pendingPrefill, setPendingPrefill] = useState<Partial<DealInput> | null>(
     null
   );
+  const [pendingPrefillSource, setPendingPrefillSource] =
+    useState<IntakeExtractionSource | undefined>(undefined);
   const [preview, setPreview] = useState<{
     input: DealInput;
     saved: boolean;
@@ -64,13 +68,18 @@ export function DealAnalyzer({
     setTouchedFields((prev) => new Set(prev).add(field));
   }
 
-  function handleRequestFill(proposed: Partial<DealInput>) {
+  function handleRequestFill(
+    proposed: Partial<DealInput>,
+    meta: { source: IntakeExtractionSource }
+  ) {
     setPendingPrefill(proposed);
+    setPendingPrefillSource(meta.source);
   }
 
   function handlePrefillConfirm(merged: DealInput) {
     setFormInput(merged);
     setPendingPrefill(null);
+    setPendingPrefillSource(undefined);
   }
 
   function handleAnalyze(input: DealInput) {
@@ -119,6 +128,14 @@ export function DealAnalyzer({
 
   return (
     <div className="space-y-6">
+      <ListingUrlIntake
+        listingUrl={formInput.listingUrl}
+        onListingUrlChange={(url) =>
+          setFormInput((prev) => ({ ...prev, listingUrl: url }))
+        }
+        onRequestFill={handleRequestFill}
+      />
+
       <ScreenshotIntake onRequestFill={handleRequestFill} />
 
       <DealForm
@@ -133,8 +150,12 @@ export function DealAnalyzer({
         current={formInput}
         proposed={pendingPrefill ?? {}}
         touchedFields={touchedFields}
+        extractionSource={pendingPrefillSource}
         onConfirm={handlePrefillConfirm}
-        onCancel={() => setPendingPrefill(null)}
+        onCancel={() => {
+          setPendingPrefill(null);
+          setPendingPrefillSource(undefined);
+        }}
       />
 
       {preview && displayAnalysis && displayVerdict && (

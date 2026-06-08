@@ -1,9 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import type { ExtractionConfidence, FieldConfidence } from "@/lib/intake/listing-parser";
+import {
+  INTAKE_SOURCE_LABELS,
+  type IntakeExtractionSource,
+} from "@/lib/types/intake-source";
 import { cn } from "@/lib/utils";
 
 interface ExtractionConfidenceProps {
   confidence: ExtractionConfidence;
+  source?: IntakeExtractionSource;
 }
 
 const confidenceStyles: Record<FieldConfidence, string> = {
@@ -36,14 +41,31 @@ function ConfidencePill({
   );
 }
 
+const sourceStyles: Record<IntakeExtractionSource, string> = {
+  url_autofill: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  ocr: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  manual: "bg-muted text-muted-foreground border-border/60",
+};
+
 export function ExtractionConfidenceBar({
   confidence,
+  source,
 }: ExtractionConfidenceProps) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">
-        Extraction confidence
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          Extraction confidence
+        </p>
+        {source && (
+          <Badge
+            variant="outline"
+            className={cn("text-[10px]", sourceStyles[source])}
+          >
+            {INTAKE_SOURCE_LABELS[source]}
+          </Badge>
+        )}
+      </div>
       <div className="flex flex-wrap gap-1.5">
         <ConfidencePill label={fieldLabels.itemName} level={confidence.itemName} />
         <ConfidencePill label={fieldLabels.askingPrice} level={confidence.askingPrice} />

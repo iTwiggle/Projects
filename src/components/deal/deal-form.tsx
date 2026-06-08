@@ -21,7 +21,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { PrefillableField } from "@/lib/intake/listing-parser";
-import { isValidListingUrl } from "@/lib/intake/listing-url";
 import {
   DEAL_CATEGORIES,
   DEAL_CONDITIONS,
@@ -77,12 +76,6 @@ export function DealForm({
       onFieldTouched(key);
     }
   }
-
-  const listingUrlDraft = form.listingUrl ?? "";
-  const listingUrlError =
-    listingUrlDraft.trim().length > 0 && !isValidListingUrl(listingUrlDraft)
-      ? "Enter a valid http(s) listing URL"
-      : null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -198,29 +191,6 @@ export function DealForm({
                 Leave blank for a rough goblin estimate.
               </p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="listingUrl">Listing URL (optional)</Label>
-            <Input
-              id="listingUrl"
-              type="url"
-              inputMode="url"
-              placeholder="https://www.facebook.com/marketplace/item/..."
-              value={listingUrlDraft}
-              onChange={(e) =>
-                updateField("listingUrl", e.target.value.trim() === "" ? null : e.target.value)
-              }
-              aria-invalid={listingUrlError ? true : undefined}
-            />
-            {listingUrlError ? (
-              <p className="text-xs text-rose-400">{listingUrlError}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Paste a Marketplace, Craigslist, OfferUp, eBay, or other listing
-                link. No scraping — link is saved with the deal.
-              </p>
-            )}
           </div>
 
           <div className="space-y-2">
