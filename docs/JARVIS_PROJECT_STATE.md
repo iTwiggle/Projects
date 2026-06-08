@@ -1,68 +1,57 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Listing Autofill v1)
+Last updated: 2026-06-08 (Smart Comp Builder v1)
 
 ## Product intent
 
-Client-only marketplace flip assistant: appraise deals, add comps, haggle scripts, and **prefill from listing URLs** when the browser allows. No backend, proxies, scraping services, or paid APIs.
+Client-only flip assistant: appraise deals, build comps fast, negotiate, optional URL autofill. No backend, scraping services, or paid APIs.
 
 ## Implemented features
 
-- Deal form, Quick Estimate, analysis, verdict, Brain Mode
-- Screenshot Intake + OCR + listing parser
-- Manual Comparable Sales + Haggle Mode
-- Marketplace Link Intake (store URL, platform badge, Open Listing)
-- **Listing Autofill v1**
-  - Paste URL → **Attempt Autofill** (browser `fetch`, CORS-only)
-  - Extract og/meta title, price, description, image URLs from HTML
-  - Feed text into existing `parseListingWithConfidence` pipeline
-  - Prefill confirm dialog (no overwrite without consent)
-  - Extraction source badges: **URL Autofill** | **OCR** | **Manual**
-  - Diagnostics on success/failure (incl. CORS blocked)
-- `getDealViewModel()` for derived UI data
+- Deal form, analysis, verdict, Brain Mode, Haggle Mode
+- Screenshot/OCR intake, Listing URL autofill (CORS-only)
+- Manual Comparable Sales + comp-driven resale estimate
+- **Smart Comp Builder v1**
+  - **Paste Comp Text** in Comparable Sales panel
+  - Batch paste (blank-line separated): eBay sold, Marketplace, Craigslist, auction text
+  - Parses title, price, condition, sold/listed, platform, notes
+  - Preview + edit before import; confidence pills per field
+  - Reuses `parseListingWithConfidence` from listing parser
+- `getDealViewModel()` for derived UI
 
 ## Architecture summary
 
 ```
-Listing URL → fetch (CORS) → HTML meta extract → parser text
-  → parseListingWithConfidence → review → PrefillConfirmDialog → DealForm
-
-Screenshot / paste → OCR or manual → same parser → same confirm flow
+Paste comp text → split blocks → parseListingWithConfidence + platform/status hints
+  → ParsedCompDraft[] → user edits → ComparableSale[] → comp calculations
 ```
-
-Autofill never calls a backend. Fails gracefully when CORS blocks fetch.
 
 ## Data model summary
 
-**`DealInput.listingUrl`** — optional, normalized on save.
-
-**Intake sources** (`IntakeExtractionSource`): `url_autofill`, `ocr`, `manual` — UI only, not persisted.
+**`ComparableSale`** unchanged. Comp paste is ephemeral until imported into deal comps array (session or saved deal).
 
 ## localStorage schema
 
-Unchanged: `marketplace-goblin-deals` → `SavedDeal[]` with optional `listingUrl`.
+Unchanged: `SavedDeal.comps[]` persists imported comps with deals.
 
 ## Key modules
 
 | Module | Role |
 |--------|------|
-| `listing-url-fetch.ts` | Browser fetch + CORS failure messages |
-| `listing-html-extract.ts` | og:/meta/JSON-LD regex extraction |
-| `listing-autofill.ts` | Orchestrate fetch → extract → parser |
-| `listing-url-intake.tsx` | Autofill UI + diagnostics |
-| `listing-parser.ts` | Shared deterministic field parser |
+| `comp-text-parser.ts` | Batch split, platform/status detection, draft parsing |
+| `paste-comp-text.tsx` | Paste UI, preview, import |
+| `comp-calculations.ts` | Stats after import (unchanged) |
 
 ## Known risks / technical debt
 
-- Most marketplace sites block CORS — autofill works only when allowed.
-- Price/title from generic meta; no page-specific scrapers.
-- Image URLs shown as previews only; not saved on deal.
+- Platform/status detection is keyword-based.
+- Parser tuned for deal listings; odd paste formats may need manual edit.
+- Paste comp UI always visible below add-comp form.
 
 ## Recent changes
 
-- Listing Autofill v1 + intake source labels
-- URL field moved to `ListingUrlIntake` (synced with form state)
-- 47 unit tests passing
+- Smart Comp Builder v1 + 8 parser tests (53 total)
+- Integrated into `ComparableSalesPanel` on Analyze + Deal Detail
 
 ## Verification
 
@@ -70,8 +59,8 @@ Unchanged: `marketplace-goblin-deals` → `SavedDeal[]` with optional `listingUr
 npm run test && npm run build && npm run lint
 ```
 
-Manual: paste URL → Attempt Autofill → review fields → Fill Analyze Form → confirm conflicts.
+Manual: paste 2–3 comps separated by blank lines → Preview → edit → Import → enable comps estimate.
 
 ## Recommended next step
 
-Allow user to paste fetched HTML manually when CORS blocks (clipboard import path).
+Remember last-used comp platform per deal, or export comps as shareable text.

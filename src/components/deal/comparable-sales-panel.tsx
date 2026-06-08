@@ -31,6 +31,7 @@ import {
   type ComparableSale,
   type CompListingType,
 } from "@/lib/types/comps";
+import { PasteCompText } from "@/components/deal/paste-comp-text";
 import { DEAL_CONDITIONS } from "@/lib/types/deal";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +100,10 @@ export function ComparableSalesPanel({
     value: Omit<ComparableSale, "id">[K]
   ) {
     setDraft((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleImportComps(imported: ComparableSale[]) {
+    onCompsChange([...comps, ...imported]);
   }
 
   return (
@@ -312,6 +317,8 @@ export function ComparableSalesPanel({
             Add comparable
           </Button>
         )}
+
+        <PasteCompText onImport={handleImportComps} />
 
         {canUseComps && (
           <div className="space-y-2 border-t border-border/40 pt-3">
