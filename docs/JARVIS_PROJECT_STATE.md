@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Identity-Aware Comp Search Links v1)
+Last updated: 2026-06-08 (v2 Data Acquisition Spec draft)
 
 ## Product intent
 
@@ -85,6 +85,12 @@ Manual:
 2. Analyze vague item name with low identity → links use item-name fallback badge.
 3. Tap eBay sold / Facebook / Copy query in Comparable Sales panel.
 
+## v2 planning
+
+**Data acquisition spec (draft):** [`docs/MARKETPLACE_GOBLIN_V2_DATA_ACQUISITION_SPEC.md`](./MARKETPLACE_GOBLIN_V2_DATA_ACQUISITION_SPEC.md)
+
+Planned hybrid path: identity-aware search links (shipped) → browser extension capture → paste/JSON import fallback → optional SerpApi eBay sold via thin BFF (paid tier). No v2 implementation committed yet.
+
 ## Recommended next step
 
-Flag when imported comp titles disagree with detected identity query.
+Implement **Phase 1** from the v2 spec: app-side `CompCaptureBatch` import contract + JSON import in Comparable Sales panel.
