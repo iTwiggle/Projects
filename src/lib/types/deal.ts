@@ -1,3 +1,5 @@
+import type { ComparableSale } from "@/lib/types/comps";
+
 export const DEAL_CATEGORIES = [
   "Electronics",
   "Furniture",
@@ -26,7 +28,7 @@ export type DealCondition = (typeof DEAL_CONDITIONS)[number];
 
 export type VerdictType = "approved" | "caution" | "reject";
 
-export type ResaleSource = "manual" | "estimated";
+export type ResaleSource = "manual" | "estimated" | "comps";
 export type EstimateConfidence = "low" | "medium" | "high";
 
 export interface ResaleEstimate {
@@ -76,6 +78,8 @@ export interface SavedDeal extends DealInput {
   updatedAt: string;
   analysis: DealAnalysis;
   verdict: GoblinVerdict;
+  comps: ComparableSale[];
+  useCompsForResale: boolean;
 }
 
 export interface DashboardStats {

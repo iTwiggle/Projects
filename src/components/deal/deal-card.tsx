@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 interface DealCardProps {
   deal: SavedDeal;
+  onView: (deal: SavedDeal) => void;
   onEdit: (deal: SavedDeal) => void;
   onDelete: (id: string) => void;
 }
@@ -41,13 +42,16 @@ const confidenceStyles = {
   high: "text-emerald-400",
 };
 
-export function DealCard({ deal, onEdit, onDelete }: DealCardProps) {
+export function DealCard({ deal, onView, onEdit, onDelete }: DealCardProps) {
   const profitPositive = deal.analysis.potentialProfit >= 0;
   const estimate = deal.analysis.resaleEstimate;
-  const isEstimated = estimate?.source === "estimated";
+  const showResaleRange =
+    estimate &&
+    estimate.low !== estimate.high &&
+    estimate.source !== "manual";
 
   const resaleDisplay = estimate
-    ? isEstimated && estimate.low !== estimate.high
+    ? showResaleRange
       ? `${formatCurrency(estimate.low)}–${formatCurrency(estimate.high)}`
       : formatCurrency(estimate.midpoint)
     : formatCurrency(deal.knownResaleValue ?? 0);
@@ -120,6 +124,15 @@ export function DealCard({ deal, onEdit, onDelete }: DealCardProps) {
         )}
 
         <div className="flex gap-2 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => onView(deal)}
+          >
+            <Eye className="size-3.5" aria-hidden />
+            Details
+          </Button>
           <Button
             variant="outline"
             size="sm"

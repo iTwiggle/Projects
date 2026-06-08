@@ -4,6 +4,7 @@ import {
   withEffectiveResale,
 } from "@/lib/analysis/resale-estimate";
 import type { DealAnalysis, DealInput, GoblinVerdict, ResolvedDeal } from "@/lib/types/deal";
+import type { AnalysisOptions } from "@/lib/types/comps";
 import {
   BRAIN_MODES,
   type BrainModeDefinition,
@@ -381,11 +382,12 @@ function buildPerspective(
 
 export function analyzeWithBrainMode(
   input: DealInput,
-  modeId: BrainModeId
+  modeId: BrainModeId,
+  options?: AnalysisOptions
 ): BrainModeResult {
   const mode = BRAIN_MODES[modeId];
-  const baseResolved = resolveDeal(input);
-  const baseAnalysis = analyzeDeal(input);
+  const baseResolved = resolveDeal(input, options);
+  const baseAnalysis = analyzeDeal(input, options);
   const { adjusted, adjustments } = transformResolved(modeId, baseResolved);
   const rawAnalysis = analyzeResolved(adjusted);
   const analysis = tuneAnalysis(modeId, rawAnalysis, input);

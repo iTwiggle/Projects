@@ -6,6 +6,7 @@ import { analyzeDeal } from "@/lib/analysis/engine";
 import { analyzeWithBrainMode } from "@/lib/analysis/brain-modes";
 import { getGoblinVerdict } from "@/lib/analysis/verdict";
 import type { PrefillableField } from "@/lib/intake/listing-parser";
+import type { SaveDealOptions } from "@/lib/storage/deals";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,16 +17,18 @@ import {
 } from "@/components/ui/dialog";
 import { DealForm } from "@/components/deal/deal-form";
 import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
+import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { GoblinBrainMode } from "@/components/deal/goblin-brain-mode";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { ScreenshotIntake } from "@/components/deal/screenshot-intake";
 import { PrefillConfirmDialog } from "@/components/deal/prefill-confirm-dialog";
 import type { BrainModeId } from "@/lib/types/brain-mode";
+import type { ComparableSale } from "@/lib/types/comps";
 import { EMPTY_DEAL_INPUT, type DealInput, type SavedDeal } from "@/lib/types/deal";
 
 interface DealAnalyzerProps {
-  onSave: (input: DealInput) => void;
+  onSave: (input: DealInput, options?: SaveDealOptions) => void;
   onEdit: (id: string, input: DealInput) => void;
   editingDeal: SavedDeal | null;
   onClearEdit: () => void;
@@ -49,6 +52,13 @@ export function DealAnalyzer({
     saved: boolean;
   } | null>(null);
   const [brainMode, setBrainMode] = useState<BrainModeId | null>(null);
+  const [comps, setComps] = useState<ComparableSale[]>([]);
+  const [useCompsForResale, setUseCompsForResale] = useState(false);
+
+  const analysisOptions = useMemo(
+    () => ({ comps, useCompsForResale }),
+    [comps, useCompsForResale]
+  );
 
   function handleFieldTouched(field: PrefillableField) {
     setTouchedFields((prev) => new Set(prev).add(field));
@@ -66,17 +76,21 @@ export function DealAnalyzer({
   function handleAnalyze(input: DealInput) {
     setPreview({ input, saved: false });
     setBrainMode(null);
+    setComps([]);
+    setUseCompsForResale(false);
   }
 
   function handleSave() {
     if (!preview) return;
-    onSave(preview.input);
+    onSave(preview.input, { comps, useCompsForResale });
     setPreview({ ...preview, saved: true });
   }
 
   function handleReset() {
     setPreview(null);
     setBrainMode(null);
+    setComps([]);
+    setUseCompsForResale(false);
   }
 
   function handleEditSubmit(input: DealInput) {
@@ -86,7 +100,9 @@ export function DealAnalyzer({
     }
   }
 
-  const standardAnalysis = preview ? analyzeDeal(preview.input) : null;
+  const standardAnalysis = preview
+    ? analyzeDeal(preview.input, analysisOptions)
+    : null;
   const standardVerdict =
     preview && standardAnalysis
       ? getGoblinVerdict(preview.input, standardAnalysis)
@@ -94,8 +110,8 @@ export function DealAnalyzer({
 
   const brainResult = useMemo(() => {
     if (!preview || !brainMode) return null;
-    return analyzeWithBrainMode(preview.input, brainMode);
-  }, [preview, brainMode]);
+    return analyzeWithBrainMode(preview.input, brainMode, analysisOptions);
+  }, [preview, brainMode, analysisOptions]);
 
   const displayAnalysis = brainResult?.analysis ?? standardAnalysis;
   const displayVerdict = brainResult?.verdict ?? standardVerdict;
@@ -142,6 +158,14 @@ export function DealAnalyzer({
               Clear
             </Button>
           </div>
+
+          <ComparableSalesPanel
+            comps={comps}
+            useCompsForResale={useCompsForResale}
+            persisted={false}
+            onCompsChange={setComps}
+            onUseCompsChange={setUseCompsForResale}
+          />
 
           <ResaleEstimatePanel estimate={displayAnalysis.resaleEstimate} />
 

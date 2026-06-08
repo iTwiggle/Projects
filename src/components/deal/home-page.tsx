@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { DealAnalyzer } from "@/components/deal/deal-analyzer";
+import { DealDetailDialog } from "@/components/deal/deal-detail-dialog";
 import { DealList } from "@/components/deal/deal-list";
 import { calculateDashboardStats } from "@/lib/storage/deals";
 import { useDeals } from "@/hooks/use-deals";
 import type { SavedDeal } from "@/lib/types/deal";
 
 export function HomePage() {
-  const { deals, isLoaded, addDeal, editDeal, removeDeal } = useDeals();
+  const { deals, isLoaded, addDeal, editDeal, setDealComps, removeDeal } =
+    useDeals();
   const [editingDeal, setEditingDeal] = useState<SavedDeal | null>(null);
+  const [viewingDealId, setViewingDealId] = useState<string | null>(null);
+
+  const viewingDeal = useMemo(
+    () => deals.find((deal) => deal.id === viewingDealId) ?? null,
+    [deals, viewingDealId]
+  );
 
   const stats = calculateDashboardStats(deals);
 
@@ -49,10 +57,17 @@ export function HomePage() {
 
         <DealList
           deals={deals}
+          onView={(deal) => setViewingDealId(deal.id)}
           onEdit={setEditingDeal}
           onDelete={removeDeal}
         />
       </main>
+
+      <DealDetailDialog
+        deal={viewingDeal}
+        onClose={() => setViewingDealId(null)}
+        onCompsChange={setDealComps}
+      />
     </div>
   );
 }

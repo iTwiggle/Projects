@@ -5,11 +5,12 @@ import type { SavedDeal } from "@/lib/types/deal";
 
 interface DealListProps {
   deals: SavedDeal[];
+  onView: (deal: SavedDeal) => void;
   onEdit: (deal: SavedDeal) => void;
   onDelete: (id: string) => void;
 }
 
-export function DealList({ deals, onEdit, onDelete }: DealListProps) {
+export function DealList({ deals, onView, onEdit, onDelete }: DealListProps) {
   if (deals.length === 0) {
     return (
       <Card className="border-dashed border-border/60 bg-card/40">
@@ -37,6 +38,7 @@ export function DealList({ deals, onEdit, onDelete }: DealListProps) {
           <DealCard
             key={deal.id}
             deal={deal}
+            onView={onView}
             onEdit={onEdit}
             onDelete={onDelete}
           />

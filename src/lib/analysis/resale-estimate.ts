@@ -1,3 +1,8 @@
+import {
+  buildResaleEstimateFromComps,
+  calculateCompSummary,
+  canUseCompsAsEstimate,
+} from "@/lib/analysis/comp-calculations";
 import type {
   DealCategory,
   DealCondition,
@@ -7,6 +12,7 @@ import type {
   ResaleEstimate,
 } from "@/lib/types/deal";
 import { hasManualResaleValue } from "@/lib/types/deal";
+import type { AnalysisOptions } from "@/lib/types/comps";
 
 const CATEGORY_RESALE_MULTIPLIER: Record<DealCategory, number> = {
   Electronics: 1.55,
@@ -175,7 +181,10 @@ function estimateFromSignals(input: DealInput): ResaleEstimate {
   };
 }
 
-export function buildResaleEstimate(input: DealInput): ResaleEstimate {
+export function buildResaleEstimate(
+  input: DealInput,
+  options?: AnalysisOptions
+): ResaleEstimate {
   if (hasManualResaleValue(input)) {
     const value = input.knownResaleValue as number;
     return {
@@ -187,11 +196,23 @@ export function buildResaleEstimate(input: DealInput): ResaleEstimate {
     };
   }
 
+  if (
+    options?.useCompsForResale &&
+    options.comps &&
+    canUseCompsAsEstimate(options.comps)
+  ) {
+    const summary = calculateCompSummary(options.comps);
+    if (summary) return buildResaleEstimateFromComps(summary);
+  }
+
   return estimateFromSignals(input);
 }
 
-export function resolveDeal(input: DealInput): ResolvedDeal {
-  const resaleEstimate = buildResaleEstimate(input);
+export function resolveDeal(
+  input: DealInput,
+  options?: AnalysisOptions
+): ResolvedDeal {
+  const resaleEstimate = buildResaleEstimate(input, options);
 
   return {
     input,
@@ -222,7 +243,9 @@ export function withEffectiveResale(
 }
 
 export function getResaleSourceLabel(source: ResaleEstimate["source"]): string {
-  return source === "manual" ? "Manual resale value" : "Fast rough estimate";
+  if (source === "manual") return "Manual resale value";
+  if (source === "comps") return "User comps";
+  return "Fast rough estimate";
 }
 
 export function getConfidenceLabel(

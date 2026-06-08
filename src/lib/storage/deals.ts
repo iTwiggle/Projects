@@ -1,5 +1,6 @@
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { getGoblinVerdict } from "@/lib/analysis/verdict";
+import type { ComparableSale } from "@/lib/types/comps";
 import type {
   DashboardStats,
   DealAnalysis,
@@ -8,6 +9,23 @@ import type {
   SavedDeal,
 } from "@/lib/types/deal";
 import { normalizeDealInput } from "@/lib/types/deal";
+
+export interface SaveDealOptions {
+  comps?: ComparableSale[];
+  useCompsForResale?: boolean;
+}
+
+function normalizeComps(raw: unknown): ComparableSale[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (comp): comp is ComparableSale =>
+      !!comp &&
+      typeof comp === "object" &&
+      typeof (comp as ComparableSale).id === "string" &&
+      typeof (comp as ComparableSale).title === "string" &&
+      typeof (comp as ComparableSale).price === "number"
+  );
+}
 
 const STORAGE_KEY = "marketplace-goblin-deals";
 
@@ -38,10 +56,13 @@ function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>
   }
 
   const input = normalizeDealInput(raw);
+  const comps = normalizeComps(raw.comps);
+  const useCompsForResale = raw.useCompsForResale === true;
+  const analysisOptions = { comps, useCompsForResale };
   const analysis =
-    raw.analysis?.resaleEstimate !== undefined
+    raw.analysis?.resaleEstimate !== undefined && !useCompsForResale
       ? raw.analysis
-      : analyzeDeal(input);
+      : analyzeDeal(input, analysisOptions);
   const verdict = raw.verdict ?? getGoblinVerdict(input, analysis);
 
   return {
@@ -49,6 +70,8 @@ function migrateSavedDeal(raw: DealInput & LegacyDealFields & Partial<SavedDeal>
     id: raw.id,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
+    comps,
+    useCompsForResale,
     analysis,
     verdict,
   };
@@ -77,9 +100,15 @@ export function saveDeals(deals: SavedDeal[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
 }
 
-export function createDeal(input: DealInput): SavedDeal {
+export function createDeal(
+  input: DealInput,
+  options?: SaveDealOptions
+): SavedDeal {
   const normalized = normalizeDealInput(input);
-  const analysis = analyzeDeal(normalized);
+  const comps = options?.comps ?? [];
+  const useCompsForResale = options?.useCompsForResale ?? false;
+  const analysisOptions = { comps, useCompsForResale };
+  const analysis = analyzeDeal(normalized, analysisOptions);
   const verdict = getGoblinVerdict(normalized, analysis);
   const now = new Date().toISOString();
 
@@ -88,6 +117,8 @@ export function createDeal(input: DealInput): SavedDeal {
     id: generateId(),
     createdAt: now,
     updatedAt: now,
+    comps,
+    useCompsForResale,
     analysis,
     verdict,
   };
@@ -98,22 +129,52 @@ export function updateDeal(
   id: string,
   input: DealInput
 ): SavedDeal[] {
-  const normalized = normalizeDealInput(input);
-  const analysis = analyzeDeal(normalized);
-  const verdict = getGoblinVerdict(normalized, analysis);
+  return deals.map((deal) => {
+    if (deal.id !== id) return deal;
 
-  return deals.map((deal) =>
-    deal.id === id
-      ? {
-          ...normalized,
-          id: deal.id,
-          createdAt: deal.createdAt,
-          updatedAt: new Date().toISOString(),
-          analysis,
-          verdict,
-        }
-      : deal
-  );
+    const normalized = normalizeDealInput(input);
+    const analysisOptions = {
+      comps: deal.comps,
+      useCompsForResale: deal.useCompsForResale,
+    };
+    const analysis = analyzeDeal(normalized, analysisOptions);
+    const verdict = getGoblinVerdict(normalized, analysis);
+
+    return {
+      ...normalized,
+      id: deal.id,
+      createdAt: deal.createdAt,
+      updatedAt: new Date().toISOString(),
+      comps: deal.comps,
+      useCompsForResale: deal.useCompsForResale,
+      analysis,
+      verdict,
+    };
+  });
+}
+
+export function updateDealComps(
+  deals: SavedDeal[],
+  id: string,
+  comps: ComparableSale[],
+  useCompsForResale: boolean
+): SavedDeal[] {
+  return deals.map((deal) => {
+    if (deal.id !== id) return deal;
+
+    const analysisOptions = { comps, useCompsForResale };
+    const analysis = analyzeDeal(deal, analysisOptions);
+    const verdict = getGoblinVerdict(deal, analysis);
+
+    return {
+      ...deal,
+      comps,
+      useCompsForResale,
+      analysis,
+      verdict,
+      updatedAt: new Date().toISOString(),
+    };
+  });
 }
 
 export function deleteDeal(deals: SavedDeal[], id: string): SavedDeal[] {

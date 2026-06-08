@@ -21,6 +21,7 @@ const confidenceStyles = {
 
 export function ResaleEstimatePanel({ estimate }: ResaleEstimatePanelProps) {
   const isEstimated = estimate.source === "estimated";
+  const isComps = estimate.source === "comps";
   const showRange = estimate.low !== estimate.high;
 
   return (
@@ -93,6 +94,12 @@ export function ResaleEstimatePanel({ estimate }: ResaleEstimatePanelProps) {
               Fast triage only. Verify comps before buying.
             </p>
           </div>
+        )}
+
+        {isComps && (
+          <p className="text-xs text-muted-foreground">
+            Resale estimate uses the median of your comparable sales.
+          </p>
         )}
       </CardContent>
     </Card>

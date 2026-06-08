@@ -6,6 +6,7 @@ import type {
   DealInput,
   ResolvedDeal,
 } from "@/lib/types/deal";
+import type { AnalysisOptions } from "@/lib/types/comps";
 
 const CONDITION_RISK: Record<DealCondition, number> = {
   New: 0,
@@ -130,6 +131,8 @@ function calculateRiskScore(resolved: ResolvedDeal): number {
   if (resaleEstimate.source === "estimated") {
     if (resaleEstimate.confidence === "low") risk += 1;
     else if (resaleEstimate.confidence === "medium") risk += 0.5;
+  } else if (resaleEstimate.source === "comps") {
+    if (resaleEstimate.confidence === "low") risk += 0.5;
   }
 
   return clamp(Math.round(risk), 1, 10);
@@ -194,8 +197,11 @@ export function analyzeResolved(resolved: ResolvedDeal): DealAnalysis {
   };
 }
 
-export function analyzeDeal(input: DealInput): DealAnalysis {
-  return analyzeResolved(resolveDeal(input));
+export function analyzeDeal(
+  input: DealInput,
+  options?: AnalysisOptions
+): DealAnalysis {
+  return analyzeResolved(resolveDeal(input, options));
 }
 
 /** @deprecated Use effectiveResaleValue from resolveDeal() */
