@@ -22,6 +22,8 @@ import type {
 import { hasManualResaleValue, normalizeDealInput } from "@/lib/types/deal";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { HaggleGuide } from "@/lib/types/haggle";
+import { resolveListingLink } from "@/lib/intake/listing-url";
+import type { ListingLinkInfo } from "@/lib/types/listing-url";
 
 export const VERDICT_BADGE_STYLES: Record<VerdictType, string> = {
   approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
@@ -59,6 +61,7 @@ export interface DealViewModel {
   verdict: GoblinVerdict;
   display: DealViewModelDisplay;
   haggle: HaggleGuide;
+  listing: ListingLinkInfo;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -158,6 +161,7 @@ function buildDealViewModel(
     analysis,
     resolved.effectiveResaleValue
   );
+  const listing = resolveListingLink(input.listingUrl);
 
   return {
     id: meta.id,
@@ -172,6 +176,7 @@ function buildDealViewModel(
     verdict,
     display,
     haggle,
+    listing,
   };
 }
 

@@ -16,6 +16,7 @@ import { AnalysisMetrics } from "@/components/deal/analysis-metrics";
 import { ComparableSalesPanel } from "@/components/deal/comparable-sales-panel";
 import { GoblinVerdict } from "@/components/deal/goblin-verdict";
 import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
+import { ListingLinkPanel } from "@/components/deal/listing-link-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,8 @@ export function DealDetailDialog({
                 Ask {formatCurrency(vm.input.askingPrice)}
               </span>
             </div>
+
+            <ListingLinkPanel listing={vm.listing} />
 
             <ComparableSalesPanel
               comps={vm.comps}

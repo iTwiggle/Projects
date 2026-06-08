@@ -1,3 +1,4 @@
+import { normalizeListingUrl } from "@/lib/intake/listing-url";
 import type { ComparableSale } from "@/lib/types/comps";
 
 export const DEAL_CATEGORIES = [
@@ -46,6 +47,8 @@ export interface DealInput {
   condition: DealCondition;
   /** User-entered resale value. Null = use goblin quick estimate. */
   knownResaleValue: number | null;
+  /** Optional source listing URL (stored when valid). */
+  listingUrl: string | null;
   notes: string;
 }
 
@@ -100,6 +103,7 @@ export const EMPTY_DEAL_INPUT: DealInput = {
   askingPrice: 0,
   condition: "Good",
   knownResaleValue: null,
+  listingUrl: null,
   notes: "",
 };
 
@@ -112,13 +116,24 @@ export function hasManualResaleValue(input: DealInput): boolean {
   return input.knownResaleValue !== null;
 }
 
+function normalizeListingUrlField(
+  raw: DealInput & LegacyDealFields & { listingUrl?: string | null }
+): string | null {
+  if (raw.listingUrl === undefined || raw.listingUrl === null) {
+    return null;
+  }
+  return normalizeListingUrl(raw.listingUrl);
+}
+
 export function normalizeDealInput(
   raw: DealInput & LegacyDealFields
 ): DealInput {
+  const listingUrl = normalizeListingUrlField(raw);
+
   if ("knownResaleValue" in raw && raw.knownResaleValue !== undefined) {
     const { estimatedResaleValue: _legacy, ...rest } = raw;
     void _legacy;
-    return rest as DealInput;
+    return { ...(rest as DealInput), listingUrl };
   }
 
   const legacy = raw.estimatedResaleValue;
@@ -126,8 +141,9 @@ export function normalizeDealInput(
   void _legacy;
 
   return {
-    ...(rest as Omit<DealInput, "knownResaleValue">),
+    ...(rest as Omit<DealInput, "knownResaleValue" | "listingUrl">),
     knownResaleValue:
       typeof legacy === "number" && legacy > 0 ? legacy : null,
+    listingUrl,
   };
 }

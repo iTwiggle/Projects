@@ -1,44 +1,40 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Haggle Mode v1)
+Last updated: 2026-06-08 (Marketplace Link Intake v1)
 
 ## Product intent
 
-Help marketplace flippers answer: **Is this actually a good deal?** Client-only MVP. Users appraise listings, add comps, then get **negotiation guidance** — all deterministic, no backend/AI.
+Help marketplace flippers appraise deals and negotiate with confidence. Client-only MVP — paste listing URLs, enter details, add comps, get haggle scripts. No backend, scraping, or AI APIs.
 
 ## Implemented features
 
-- Deal form + Quick Estimate (`knownResaleValue` optional)
-- Analysis engine: profit, ROI, risk, flip, time-to-sell
-- Goblin verdict + Brain Mode (5 lenses)
+- Deal form + Quick Estimate + optional **listing URL**
+- Analysis engine, goblin verdict, Brain Mode
 - Screenshot Intake + OCR + listing parser
-- Manual Comparable Sales v1 (Analyze temp / Detail persisted)
-- **Haggle Mode v1**
-  - Panel on **Analyze** (standard preview) and **Deal Detail**
-  - Buy targets: break-even, max for 25/50/100% ROI, fees/repairs buffer
-  - Negotiation: opening offer, counter range, walk-away price
-  - Asking rating: Great / Good / Tight / Overpriced
-  - Copy-paste scripts (opening, counter, walk-away)
-- **`getDealViewModel()` / `getPreviewViewModel()`** — single derived-data path (includes `haggle`)
+- Manual Comparable Sales v1
+- Haggle Mode v1
+- **Marketplace Link Intake v1**
+  - Optional listing URL on deal form
+  - Stored on `SavedDeal` when valid (http/https)
+  - Platform badge: Facebook Marketplace, Craigslist, OfferUp, eBay, Unknown
+  - Deal Detail: URL display + **Open Listing** button
+  - Hostname detection only — no fetch/scrape
+- **`getDealViewModel()`** — includes `listing` metadata
 
 ## Architecture summary
 
 ```
-SavedDeal → getDealViewModel() → UI (card, detail, haggle, dashboard)
-Analyze   → getPreviewViewModel() → same pipeline (haggle hidden in Brain Mode)
+DealInput.listingUrl → normalizeDealInput → localStorage
+                      → resolveListingLink() → DealViewModel.listing → UI
 ```
-
-Resale priority: **manual** → **comps** (3+ enabled) → **estimated**.
-
-Haggle uses `resolved.effectiveResaleValue` + `analysis.roiPercent` from the view model — never cached blobs.
 
 ## Data model summary
 
-**`SavedDeal`** = inputs + `comps`, `useCompsForResale`, cached `analysis`/`verdict` (write-only for schema).
+**`DealInput` / `SavedDeal`** adds `listingUrl: string | null`.
 
-**`DealViewModel`** = `input`, `comps`, `compSummary`, `resolved`, `analysis`, `verdict`, `display`, **`haggle`**.
+**`ListingLinkInfo`** (runtime): `url`, `isValid`, `hasLink`, `platform`, `platformLabel`, `hostname`.
 
-**`HaggleGuide`** = price targets, rating, scripts (runtime only, not persisted).
+**`DealViewModel`** = prior fields + `listing`.
 
 ## localStorage schema
 
@@ -46,38 +42,35 @@ Haggle uses `resolved.effectiveResaleValue` + `analysis.roiPercent` from the vie
 |-----|-------|
 | `marketplace-goblin-deals` | `SavedDeal[]` JSON |
 
-Unchanged — haggle is computed on read, not stored.
+New field `listingUrl` optional; missing on legacy deals → `null` on load.
 
-## Analysis + haggle pipeline
+## Analysis pipeline
 
-1. View model builds `analysis` from inputs/comps
-2. `calculateHaggleGuide(input, analysis, effectiveResaleValue)`
-3. Net resale = resale − fees/repairs buffer (category + condition)
-4. Max buy@ROI = net / (1 + ROI/100)
-5. Rate ask vs 100/50/25% ceilings → Great/Good/Tight/Overpriced
+Unchanged for resale/haggle. Listing link is display metadata only.
 
 ## Known risks / technical debt
 
-- Haggle hidden during Brain Mode on Analyze (uses alternate analysis).
-- Fees/buffer rates are heuristic, not user-editable.
-- View model recomputed per render — memoize at scale.
+- Platform detection is hostname/path heuristic (no scraping).
+- Invalid URLs typed in form are not persisted (normalized to `null`).
+- Generic Facebook URLs without `/marketplace` still map to Facebook Marketplace.
 
 ## Recent changes
 
-- `haggle-calculations.ts` + tests
-- `HaggleModePanel` with copy buttons
-- `DealViewModel.haggle` wired through preview + detail
+- `listing-url.ts` validation + platform detection + tests
+- Deal form URL field with inline validation
+- `ListingLinkPanel` on Deal Detail
+- `DealViewModel.listing`
 
 ## Verification
 
 ```bash
-npm run test    # 33 passed
+npm run test
 npm run build
 npm run lint
 ```
 
-Manual: analyze a listing → Haggle Mode shows rating + targets; copy opening script; change asking price → rating updates; Detail matches Analyze after save.
+Manual: paste eBay URL on form → analyze → save → Detail shows badge + Open Listing.
 
 ## Recommended next step
 
-Let users tweak fees/buffer % in Haggle Mode, or show haggle summary on **DealCard**.
+Show platform badge on **DealCard** when a listing URL exists, or parse URL query params for future prefill (still no scraping).

@@ -306,6 +306,7 @@ export function extractedToDealPartial(
     category: extracted.category,
     notes: extracted.notes,
     knownResaleValue: null,
+    listingUrl: null,
   };
 }
 

@@ -13,6 +13,7 @@ const baseInput: DealInput = {
   askingPrice: 120,
   condition: "Good",
   knownResaleValue: null,
+  listingUrl: null,
   notes: "",
 };
 

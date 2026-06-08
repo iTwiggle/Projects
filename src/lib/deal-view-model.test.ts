@@ -22,6 +22,7 @@ function makeSavedDeal(overrides: Partial<SavedDeal> = {}): SavedDeal {
     askingPrice: 100,
     condition: "Good",
     knownResaleValue: null,
+    listingUrl: null,
     notes: "",
     id: "deal-1",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -130,6 +131,19 @@ describe("getDealViewModel", () => {
     );
   });
 
+  it("resolves listing link metadata", () => {
+    const vm = getDealViewModel(
+      makeSavedDeal({
+        listingUrl: "https://www.ebay.com/itm/123456789",
+      })
+    );
+
+    expect(vm.listing.hasLink).toBe(true);
+    expect(vm.listing.platform).toBe("ebay");
+    expect(vm.listing.platformLabel).toBe("eBay");
+    expect(vm.listing.url).toBe("https://www.ebay.com/itm/123456789");
+  });
+
   it("includes haggle guidance derived from analysis", () => {
     const vm = getDealViewModel(makeSavedDeal({ askingPrice: 100 }));
 
@@ -149,6 +163,7 @@ describe("getDealViewModel", () => {
       askingPrice: 80,
       condition: "Good" as const,
       knownResaleValue: null,
+      listingUrl: null,
       notes: "",
     };
     const comps = [makeComp(100), makeComp(120), makeComp(140)];
