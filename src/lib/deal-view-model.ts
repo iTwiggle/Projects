@@ -1,4 +1,5 @@
 import { buildCategoryIntelligence } from "@/lib/analysis/category-intelligence";
+import { buildCompSearchQuery } from "@/lib/analysis/comp-search-links";
 import { getItemIdentity } from "@/lib/analysis/item-identity";
 import { analyzeDeal } from "@/lib/analysis/engine";
 import { calculateCompSummary } from "@/lib/analysis/comp-calculations";
@@ -31,6 +32,7 @@ import type {
 } from "@/lib/types/item-identity";
 import type { HaggleGuide } from "@/lib/types/haggle";
 import { resolveListingLink } from "@/lib/intake/listing-url";
+import type { CompSearchQuery } from "@/lib/types/comp-search";
 import type { ListingLinkInfo } from "@/lib/types/listing-url";
 
 export const VERDICT_BADGE_STYLES: Record<VerdictType, string> = {
@@ -86,6 +88,7 @@ export interface DealViewModel {
   categoryIntel: DealViewModelCategoryIntel;
   itemIdentity: ItemIdentity;
   identity: DealViewModelIdentitySummary;
+  compSearch: CompSearchQuery | null;
 }
 
 function buildResaleDisplay(estimate: ResaleEstimate): {
@@ -248,6 +251,7 @@ function buildDealViewModel(
     },
     itemIdentity,
     identity: buildIdentitySummary(itemIdentity),
+    compSearch: buildCompSearchQuery(input.itemName, itemIdentity),
   };
 }
 

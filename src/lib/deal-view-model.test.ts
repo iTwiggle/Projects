@@ -197,6 +197,20 @@ describe("getDealViewModel", () => {
     expect(vm.identity.hasConflict).toBe(false);
   });
 
+  it("includes identity-based comp search links", () => {
+    const vm = getDealViewModel(
+      makeSavedDeal({
+        itemName: "cordless drill",
+        category: "Tools & Hardware",
+        notes: "Milwaukee M18 Fuel",
+      })
+    );
+
+    expect(vm.compSearch).not.toBeNull();
+    expect(vm.compSearch?.source).toBe("identity");
+    expect(vm.compSearch?.links.length).toBe(6);
+  });
+
   it("includes category intelligence in view model", () => {
     const vm = getDealViewModel(
       makeSavedDeal({

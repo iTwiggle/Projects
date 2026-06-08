@@ -246,6 +246,7 @@ export function DealAnalyzer({
             onCompsEstimateManualOffChange={setCompsEstimateManualOff}
             onCompsChange={handleCompsChange}
             onUseCompsChange={setUseCompsForResale}
+            compSearch={previewViewModel?.compSearch ?? null}
           />
 
           <ResaleEstimatePanel

@@ -26,7 +26,9 @@ import {
   type ComparableSale,
   type CompListingType,
 } from "@/lib/types/comps";
+import { CompSearchLinksPanel } from "@/components/deal/comp-search-links-panel";
 import { PasteCompText } from "@/components/deal/paste-comp-text";
+import type { CompSearchQuery } from "@/lib/types/comp-search";
 import { DEAL_CONDITIONS, type DealCondition } from "@/lib/types/deal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ interface ComparableSalesPanelProps {
   dealCondition?: DealCondition;
   compsEstimateManualOff?: boolean;
   onCompsEstimateManualOffChange?: (manualOff: boolean) => void;
+  compSearch?: CompSearchQuery | null;
 }
 
 const confidenceStyles = {
@@ -75,6 +78,7 @@ export function ComparableSalesPanel({
   dealCondition = "Good",
   compsEstimateManualOff = false,
   onCompsEstimateManualOffChange,
+  compSearch = null,
 }: ComparableSalesPanelProps) {
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState<Omit<ComparableSale, "id">>(() => ({
@@ -201,6 +205,8 @@ export function ComparableSalesPanel({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {compSearch && <CompSearchLinksPanel compSearch={compSearch} />}
+
         <CompProgressIndicator progress={progress} />
 
         {summary ? (
