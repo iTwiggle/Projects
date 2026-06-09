@@ -43,6 +43,7 @@ import { DEAL_CATEGORIES, DEAL_CONDITIONS } from "@/lib/types/deal";
 import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 import type { ItemIdentitySources } from "@/lib/types/item-identity";
 import type { MarketplaceListingCaptureBatch } from "@/lib/types/marketplace-listing-capture";
+import { recordFacebookCaptureReceived } from "@/lib/storage/usage-telemetry";
 import { cn } from "@/lib/utils";
 
 interface ListingExtensionIntakeProps {
@@ -113,6 +114,7 @@ export function ListingExtensionIntake({
       const { fields, confidence: nextConfidence, warnings: nextWarnings } =
         marketplaceListingBatchToExtractedFields(batch);
 
+      recordFacebookCaptureReceived();
       setPendingBatch(batch);
       setExtracted(fields);
       setConfidence(nextConfidence);

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { StatsCards } from "@/components/dashboard/stats-cards";
+import { UsageDashboard } from "@/components/dashboard/usage-dashboard";
 import { DealAnalyzer } from "@/components/deal/deal-analyzer";
 import { DealDetailDialog } from "@/components/deal/deal-detail-dialog";
 import { DealList } from "@/components/deal/deal-list";
@@ -47,6 +48,8 @@ export function HomePage() {
           </div>
           <StatsCards stats={stats} />
         </section>
+
+        <UsageDashboard />
 
         <DealAnalyzer
           onSave={addDeal}

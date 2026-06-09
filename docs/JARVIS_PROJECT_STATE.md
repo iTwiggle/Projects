@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Facebook Marketplace listing capture v0.1)
+Last updated: 2026-06-08 (Local usage telemetry v1)
 
 ## Product intent
 
@@ -69,6 +69,8 @@ Saved deals schema unchanged.
 | `types/marketplace-listing-capture.ts` | `MarketplaceListingCaptureBatch` schema |
 | `marketplace-listing-capture-import.ts` | Listing batch → extracted deal fields |
 | `listing-extension-intake.tsx` | Listen + review + prefill confirm flow |
+| `usage-telemetry.ts` | localStorage-only friction metrics (no network) |
+| `usage-dashboard.tsx` | Local Usage Dashboard on home page |
 
 ## Known risks / technical debt
 
@@ -78,6 +80,7 @@ Saved deals schema unchanged.
 
 ## Recent changes
 
+- Local Usage Telemetry v1: capture/import/analyze counters in localStorage + Local Usage Dashboard (resettable, no backend)
 - Facebook Marketplace Capture v0.1: single `/marketplace/item/` listing capture → `MarketplaceListingCaptureBatch` → listing import bridge → Extension Listing Import review → PrefillConfirmDialog
 - Extension Step 3 — Direct Goblin Import Bridge: Listen mode in Comparable Sales, Send to Goblin in extension, postMessage + clipboard fallback, preview/confirm import flow
 - eBay Extension Capture v0.2: scroll guidance, capture stats panel, sponsored/promo filtering, sold-context detection with low-confidence ambiguous rows, single `/itm/` listing capture

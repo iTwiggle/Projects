@@ -10,6 +10,13 @@ import {
   validateExtensionImportMessage,
 } from "@/lib/extension/comp-import-bridge";
 import type { CompCaptureBatch } from "@/lib/types/comp-capture";
+import type { CompImportChannel } from "@/lib/storage/usage-telemetry";
+import {
+  isEbayCapturePlatform,
+  recordCompImport,
+  recordEbayCaptureImported,
+  recordEbayCaptureReceived,
+} from "@/lib/storage/usage-telemetry";
 import {
   normalizeCapturedComps,
   parseCompCaptureJson,
@@ -72,6 +79,10 @@ export function PasteCompText({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listeningRef = useRef(false);
+  const pendingCompImportRef = useRef<{
+    channel: CompImportChannel;
+    platform?: string;
+  } | null>(null);
   const [open, setOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [listenNotice, setListenNotice] = useState<string | null>(null);
@@ -116,13 +127,18 @@ export function PasteCompText({
     setJsonImport(null);
     setParseNotice(null);
     setOpen(false);
+    pendingCompImportRef.current = null;
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
   const previewJsonBatch = useCallback(
-    (batch: CompCaptureBatch, sourceLabel = "Batch") => {
+    (batch: CompCaptureBatch, sourceLabel = "Batch", channel: CompImportChannel = "json") => {
+      pendingCompImportRef.current = {
+        channel,
+        platform: batch.platform,
+      };
       const result = normalizeCapturedComps(batch, {
         existingComps,
         itemIdentity,
@@ -150,7 +166,7 @@ export function PasteCompText({
       return;
     }
 
-    previewJsonBatch(parsed.batch, "JSON batch");
+    previewJsonBatch(parsed.batch, "JSON batch", "json");
   }
 
   const startListening = useCallback(() => {
@@ -190,7 +206,10 @@ export function PasteCompText({
       }
 
       postExtensionImportAck(true);
-      previewJsonBatch(batch, "Extension batch");
+      if (isEbayCapturePlatform(batch.platform)) {
+        recordEbayCaptureReceived();
+      }
+      previewJsonBatch(batch, "Extension batch", "extension");
       setListenNotice(
         `Received ${batch.comps.length} comp${batch.comps.length !== 1 ? "s" : ""} from extension — review and confirm import.`
       );
@@ -257,6 +276,14 @@ export function PasteCompText({
 
   function handleImport() {
     if (jsonImport && jsonImport.comps.length > 0) {
+      const pending = pendingCompImportRef.current;
+      recordCompImport(jsonImport.comps.length, pending?.channel ?? "json");
+      if (
+        pending?.channel === "extension" &&
+        isEbayCapturePlatform(pending.platform)
+      ) {
+        recordEbayCaptureImported();
+      }
       onImport(jsonImport.comps);
       reset();
       return;
@@ -265,6 +292,7 @@ export function PasteCompText({
     const valid = drafts.filter(isValidCompDraft);
     if (valid.length === 0) return;
 
+    recordCompImport(valid.length, "paste");
     onImport(
       valid.map((draft) =>
         parsedCompDraftToComparable(draft, generateCompId())
