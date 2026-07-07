@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Marketplace Goblin Comp Capture",
-  "version": "0.3.0",
-  "description": "Capture visible eBay sold/active listings and send comps to Marketplace Goblin.",
+  "version": "0.4.0",
+  "description": "Capture eBay comps and Facebook Marketplace listings for Marketplace Goblin.",
   "permissions": ["activeTab", "scripting", "clipboardWrite", "tabs"],
   "host_permissions": [
     "https://www.ebay.com/*",
     "https://ebay.com/*",
+    "https://www.facebook.com/*",
+    "https://m.facebook.com/*",
+    "https://facebook.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],

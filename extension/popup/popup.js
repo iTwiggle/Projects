@@ -1,7 +1,12 @@
-import { sendBatchToGoblin } from "../lib/goblin-bridge.js";
+import { getFacebookPageKind } from "../lib/facebook-parser.js";
+import { sendBatchToGoblin, sendListingBatchToGoblin } from "../lib/goblin-bridge.js";
 
 /** @type {import('../lib/schema.js').CompCaptureBatch | null} */
-let currentBatch = null;
+let currentCompBatch = null;
+/** @type {import('../lib/listing-schema.js').MarketplaceListingCaptureBatch | null} */
+let currentListingBatch = null;
+/** @type {"ebay" | "facebook" | null} */
+let activePlatform = null;
 
 const pageStatusEl = document.getElementById("page-status");
 const scrollHintEl = document.getElementById("scroll-hint");
@@ -30,6 +35,12 @@ function getEbayPageKind(url) {
   }
 }
 
+function detectPlatform(url) {
+  if (getEbayPageKind(url)) return "ebay";
+  if (getFacebookPageKind(url)) return "facebook";
+  return null;
+}
+
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.remove("hidden");
@@ -38,7 +49,7 @@ function showToast(message) {
   }, 3500);
 }
 
-function renderStats(stats) {
+function renderEbayStats(stats) {
   statCaptured.textContent = String(stats.capturedThisRun ?? 0);
   statValid.textContent = String(stats.validComps ?? 0);
   statDuplicates.textContent = String(stats.duplicateRows ?? 0);
@@ -46,7 +57,7 @@ function renderStats(stats) {
   statsPanel.classList.remove("hidden");
 }
 
-function renderPreview(batch) {
+function renderEbayPreview(batch) {
   previewList.innerHTML = "";
 
   if (batch.comps.length === 0) {
@@ -82,11 +93,57 @@ function renderPreview(batch) {
   }
 }
 
-function showExportActions(batch) {
+function renderListingPreview(batch) {
+  previewList.innerHTML = "";
+  const listing = batch.listing;
+  const li = document.createElement("li");
+  li.className = "preview-item";
+
+  const title = document.createElement("p");
+  title.className = "preview-title";
+  title.textContent = listing.title || "(title not detected)";
+
+  const meta = document.createElement("p");
+  meta.className = "preview-meta";
+  const price =
+    listing.askingPrice != null
+      ? `$${Number(listing.askingPrice).toFixed(2)}`
+      : "price not detected";
+  const fallbackTag = batch.selectorFallback
+    ? ' · <span class="badge-low-confidence">fallback capture</span>'
+    : "";
+  meta.innerHTML = `${batch.platform} · ${price}${fallbackTag}`;
+
+  if (listing.description) {
+    const desc = document.createElement("p");
+    desc.className = "preview-meta";
+    desc.textContent = listing.description.slice(0, 160);
+    li.appendChild(title);
+    li.appendChild(meta);
+    li.appendChild(desc);
+  } else {
+    li.appendChild(title);
+    li.appendChild(meta);
+  }
+
+  previewList.appendChild(li);
+}
+
+function hasExportableCapture() {
+  if (activePlatform === "ebay") {
+    return Boolean(currentCompBatch?.comps?.length);
+  }
+  if (activePlatform === "facebook") {
+    return Boolean(currentListingBatch?.listing?.rawText);
+  }
+  return false;
+}
+
+function showExportActions() {
   exportActionsEl.classList.remove("hidden");
-  const hasComps = batch.comps.length > 0;
-  sendBtn.disabled = !hasComps;
-  copyBtn.disabled = !hasComps;
+  const enabled = hasExportableCapture();
+  sendBtn.disabled = !enabled;
+  copyBtn.disabled = !enabled;
 }
 
 async function getActiveTab() {
@@ -94,7 +151,7 @@ async function getActiveTab() {
   return tab;
 }
 
-async function injectCaptureScripts(tabId) {
+async function injectEbayCaptureScripts(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId },
     files: ["lib/ebay-parser-global.js"],
@@ -105,11 +162,31 @@ async function injectCaptureScripts(tabId) {
   });
 }
 
-async function runCapture(tabId) {
-  await injectCaptureScripts(tabId);
+async function injectFacebookCaptureScripts(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["lib/facebook-parser-global.js"],
+  });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content/facebook-capture.js"],
+  });
+}
+
+async function runEbayCapture(tabId) {
+  await injectEbayCaptureScripts(tabId);
   const [result] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => globalThis.__marketplaceGoblinCaptureEbay?.(),
+  });
+  return result?.result ?? null;
+}
+
+async function runFacebookCapture(tabId) {
+  await injectFacebookCaptureScripts(tabId);
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => globalThis.__marketplaceGoblinCaptureFacebook?.(),
   });
   return result?.result ?? null;
 }
@@ -121,20 +198,28 @@ async function init() {
     return;
   }
 
-  const pageKind = getEbayPageKind(tab.url);
-  if (!pageKind) {
+  const platform = detectPlatform(tab.url);
+  if (!platform) {
     pageStatusEl.textContent =
-      "Open an eBay search (/sch/) or listing (/itm/) page, then try again.";
+      "Open an eBay search/listing or Facebook Marketplace item page.";
     return;
   }
 
-  const soldHint = tab.url.includes("LH_Sold=1") ? " · sold filter" : "";
-  if (pageKind === "search") {
-    pageStatusEl.textContent = `Ready on eBay search results${soldHint}.`;
-    scrollHintEl.classList.remove("hidden");
-    captureBtn.textContent = "Capture visible eBay comps";
+  activePlatform = platform;
+
+  if (platform === "ebay") {
+    const pageKind = getEbayPageKind(tab.url);
+    const soldHint = tab.url.includes("LH_Sold=1") ? " · sold filter" : "";
+    if (pageKind === "search") {
+      pageStatusEl.textContent = `Ready on eBay search results${soldHint}.`;
+      scrollHintEl.classList.remove("hidden");
+      captureBtn.textContent = "Capture visible eBay comps";
+    } else {
+      pageStatusEl.textContent = "Ready on eBay listing page.";
+      captureBtn.textContent = "Capture this listing";
+    }
   } else {
-    pageStatusEl.textContent = "Ready on eBay listing page.";
+    pageStatusEl.textContent = "Ready on Facebook Marketplace listing page.";
     captureBtn.textContent = "Capture this listing";
   }
 
@@ -146,40 +231,59 @@ async function init() {
     captureBtn.textContent = "Capturing…";
 
     try {
-      const result = await runCapture(tab.id);
-      const batch = result?.batch;
-      const stats = result?.stats;
+      if (activePlatform === "ebay") {
+        const result = await runEbayCapture(tab.id);
+        const batch = result?.batch;
+        const stats = result?.stats;
 
-      if (!batch || batch.schemaVersion !== "1.0") {
-        showToast("Capture failed — reload the eBay page and try again.");
-        return;
-      }
-
-      currentBatch = batch;
-      renderStats(
-        stats ?? {
-          capturedThisRun: batch.comps.length,
-          validComps: batch.comps.length,
-          duplicateRows: 0,
-          skippedRows: 0,
+        if (!batch || batch.schemaVersion !== "1.0") {
+          showToast("Capture failed — reload the eBay page and try again.");
+          return;
         }
-      );
-      renderPreview(batch);
+
+        currentCompBatch = batch;
+        currentListingBatch = null;
+        renderEbayStats(
+          stats ?? {
+            capturedThisRun: batch.comps.length,
+            validComps: batch.comps.length,
+            duplicateRows: 0,
+            skippedRows: 0,
+          }
+        );
+        renderEbayPreview(batch);
+
+        const scanned = stats?.scannedRows ?? batch.comps.length;
+        captureMetaEl.textContent = `Scanned ${scanned} row${scanned === 1 ? "" : "s"} · query: ${batch.searchQuery || "—"}`;
+
+        if (getEbayPageKind(tab.url) === "search" && batch.comps.length > 0) {
+          showToast("Captured — scroll for more, then capture again if needed.");
+        }
+      } else {
+        const result = await runFacebookCapture(tab.id);
+        const batch = result?.batch;
+
+        if (!batch || batch.schemaVersion !== "1.0") {
+          showToast("Capture failed — reload the Facebook listing and try again.");
+          return;
+        }
+
+        currentListingBatch = batch;
+        currentCompBatch = null;
+        statsPanel.classList.add("hidden");
+        renderListingPreview(batch);
+
+        captureMetaEl.textContent = batch.selectorFallback
+          ? "Fallback capture — visible page text + URL only."
+          : `Captured ${batch.platform} listing fields.`;
+      }
 
       previewSection.classList.remove("hidden");
       captureMetaEl.classList.remove("hidden");
-
-      const scanned = stats?.scannedRows ?? batch.comps.length;
-      captureMetaEl.textContent = `Scanned ${scanned} row${scanned === 1 ? "" : "s"} · query: ${batch.searchQuery || "—"}`;
-
-      showExportActions(batch);
-
-      if (pageKind === "search" && batch.comps.length > 0) {
-        showToast("Captured — scroll for more, then capture again if needed.");
-      }
+      showExportActions();
     } catch (error) {
       console.error(error);
-      showToast("Capture error — check the eBay tab and retry.");
+      showToast("Capture error — check the page and retry.");
     } finally {
       captureBtn.disabled = false;
       captureBtn.textContent = originalLabel;
@@ -187,40 +291,49 @@ async function init() {
   });
 
   sendBtn.addEventListener("click", async () => {
-    if (!currentBatch) return;
-
     sendBtn.disabled = true;
     const originalLabel = sendBtn.textContent;
     sendBtn.textContent = "Sending…";
 
     try {
-      const result = await sendBatchToGoblin(currentBatch);
-      if (result.ok) {
-        showToast(
-          `Sent ${currentBatch.comps.length} comps to Marketplace Goblin — confirm import there.`
-        );
-      } else {
-        showToast(result.error ?? "Send failed — use Copy JSON as a fallback.");
+      if (activePlatform === "ebay" && currentCompBatch) {
+        const result = await sendBatchToGoblin(currentCompBatch);
+        if (result.ok) {
+          showToast(
+            `Sent ${currentCompBatch.comps.length} comps to Marketplace Goblin — confirm import there.`
+          );
+        } else {
+          showToast(result.error ?? "Send failed — use Copy JSON as a fallback.");
+        }
+      } else if (activePlatform === "facebook" && currentListingBatch) {
+        const result = await sendListingBatchToGoblin(currentListingBatch);
+        if (result.ok) {
+          showToast(
+            "Sent listing to Marketplace Goblin — review and confirm there."
+          );
+        } else {
+          showToast(result.error ?? "Send failed — use Copy JSON as a fallback.");
+        }
       }
     } catch (error) {
       console.error(error);
       showToast("Send failed — use Copy JSON as a fallback.");
     } finally {
-      sendBtn.disabled = currentBatch.comps.length === 0;
+      sendBtn.disabled = !hasExportableCapture();
       sendBtn.textContent = originalLabel;
     }
   });
 
   copyBtn.addEventListener("click", async () => {
-    if (!currentBatch) return;
+    const payload =
+      activePlatform === "ebay" ? currentCompBatch : currentListingBatch;
+    if (!payload) return;
 
-    const json = JSON.stringify(currentBatch, null, 2);
+    const json = JSON.stringify(payload, null, 2);
 
     try {
       await navigator.clipboard.writeText(json);
-      showToast(
-        `Copied ${currentBatch.comps.length} comps — paste into Marketplace Goblin.`
-      );
+      showToast("Copied JSON — paste into Marketplace Goblin as a fallback.");
     } catch {
       showToast("Clipboard failed — select and copy manually from devtools.");
     }

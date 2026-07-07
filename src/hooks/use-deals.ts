@@ -12,6 +12,7 @@ import {
 } from "@/lib/storage/deals";
 import type { ComparableSale } from "@/lib/types/comps";
 import type { DealInput, SavedDeal } from "@/lib/types/deal";
+import { recordDealSaved } from "@/lib/storage/usage-telemetry";
 
 const listeners = new Set<() => void>();
 let cachedDeals: SavedDeal[] | null = null;
@@ -48,6 +49,7 @@ export function useDeals() {
   const addDeal = useCallback(
     (input: DealInput, options?: SaveDealOptions) => {
       const deal = createDeal(input, options);
+      recordDealSaved(options?.comps?.length ?? 0);
       persist([deal, ...deals]);
       return deal;
     },

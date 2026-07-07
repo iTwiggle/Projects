@@ -31,12 +31,18 @@ import { HaggleModePanel } from "@/components/deal/haggle-mode-panel";
 import { ResaleEstimatePanel } from "@/components/deal/resale-estimate-panel";
 import { ScreenshotIntake } from "@/components/deal/screenshot-intake";
 import { ListingUrlIntake } from "@/components/deal/listing-url-intake";
+import { ListingExtensionIntake } from "@/components/deal/listing-extension-intake";
 import { PrefillConfirmDialog } from "@/components/deal/prefill-confirm-dialog";
 import type { IntakeExtractionSource } from "@/lib/types/intake-source";
 import type { BrainModeId } from "@/lib/types/brain-mode";
 import type { ComparableSale } from "@/lib/types/comps";
 import { EMPTY_DEAL_INPUT, type DealInput, type SavedDeal } from "@/lib/types/deal";
 import type { ItemIdentitySources } from "@/lib/types/item-identity";
+import {
+  recordDealAnalyzed,
+  recordFacebookCaptureImported,
+  recordListingImported,
+} from "@/lib/storage/usage-telemetry";
 
 interface DealAnalyzerProps {
   onSave: (input: DealInput, options?: SaveDealOptions) => void;
@@ -116,6 +122,12 @@ export function DealAnalyzer({
   }
 
   function handlePrefillConfirm(merged: DealInput) {
+    if (pendingPrefillSource) {
+      recordListingImported(pendingPrefillSource);
+      if (pendingPrefillSource === "extension") {
+        recordFacebookCaptureImported();
+      }
+    }
     setFormInput(merged);
     setPendingPrefill(null);
     setPendingPrefillSource(undefined);
@@ -124,6 +136,14 @@ export function DealAnalyzer({
   function handleAnalyze(input: DealInput) {
     setPreview({ input, saved: false });
     setBrainMode(null);
+
+    const viewModel = getPreviewViewModel(
+      input,
+      comps,
+      useCompsForResale,
+      identitySources
+    );
+    recordDealAnalyzed(viewModel.analysis.resaleEstimate.source);
   }
 
   function handleSave() {
@@ -190,6 +210,11 @@ export function DealAnalyzer({
       />
 
       <ScreenshotIntake
+        onRequestFill={handleRequestFill}
+        onIdentitySourcesChange={setIdentitySources}
+      />
+
+      <ListingExtensionIntake
         onRequestFill={handleRequestFill}
         onIdentitySourcesChange={setIdentitySources}
       />

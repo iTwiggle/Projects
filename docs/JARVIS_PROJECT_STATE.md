@@ -1,6 +1,6 @@
 # Marketplace Goblin — Project State
 
-Last updated: 2026-06-08 (Extension Step 3 — Direct Goblin import bridge)
+Last updated: 2026-06-08 (Local usage telemetry v1)
 
 ## Product intent
 
@@ -63,8 +63,14 @@ Saved deals schema unchanged.
 | `analyze-draft.ts` | Persists OCR/listing text for analyze session |
 | `types/comp-capture.ts` | `CapturedComp`, `CompCaptureBatch`, `CompImportReport` |
 | `comp-capture-import.ts` | Normalize captured comps → `ComparableSale[]` |
-| `extension/` | MV3 eBay comp capture v0.3 → postMessage or clipboard import |
-| `comp-import-bridge.ts` | postMessage contract, origin checks, payload validation |
+| `extension/` | MV3 eBay comp + Facebook listing capture v0.4 |
+| `comp-import-bridge.ts` | Comp postMessage contract + validation |
+| `listing-import-bridge.ts` | Listing postMessage contract + validation |
+| `types/marketplace-listing-capture.ts` | `MarketplaceListingCaptureBatch` schema |
+| `marketplace-listing-capture-import.ts` | Listing batch → extracted deal fields |
+| `listing-extension-intake.tsx` | Listen + review + prefill confirm flow |
+| `usage-telemetry.ts` | localStorage-only friction metrics (no network) |
+| `usage-dashboard.tsx` | Local Usage Dashboard on home page |
 
 ## Known risks / technical debt
 
@@ -74,6 +80,8 @@ Saved deals schema unchanged.
 
 ## Recent changes
 
+- Local Usage Telemetry v1: capture/import/analyze counters in localStorage + Local Usage Dashboard (resettable, no backend)
+- Facebook Marketplace Capture v0.1: single `/marketplace/item/` listing capture → `MarketplaceListingCaptureBatch` → listing import bridge → Extension Listing Import review → PrefillConfirmDialog
 - Extension Step 3 — Direct Goblin Import Bridge: Listen mode in Comparable Sales, Send to Goblin in extension, postMessage + clipboard fallback, preview/confirm import flow
 - eBay Extension Capture v0.2: scroll guidance, capture stats panel, sponsored/promo filtering, sold-context detection with low-confidence ambiguous rows, single `/itm/` listing capture
 - Comp Capture Import Phase 1: JSON envelope import, normalization, dedupe, mismatch warnings (117 tests)
@@ -102,8 +110,8 @@ Planned hybrid path: identity-aware search links (shipped) → browser extension
 
 **Extension spec:** [`docs/MARKETPLACE_GOBLIN_EXTENSION_SPEC.md`](./MARKETPLACE_GOBLIN_EXTENSION_SPEC.md)
 
-**Extension prototype (v0.3):** `extension/` — MV3 eBay capture → **Send to Goblin** (localhost postMessage) or clipboard → Goblin Listen mode → preview → confirm import. See `extension/README.md`.
+**Extension prototype (v0.4):** `extension/` — eBay comps + Facebook Marketplace single listing capture → **Send to Goblin** (localhost postMessage) or clipboard. See `extension/README.md`.
 
 ## Recommended next step
 
-Manual QA: Listen for extension import in Goblin, capture eBay sold search, Send to Goblin, confirm import preview. Test clipboard fallback and listen timeout/cancel. Then Craigslist parser or hosted-origin allowlist.
+Manual QA: Facebook Marketplace item page → extension capture → Listen for extension listing import → review → Fill Analyze Form → PrefillConfirmDialog. Then FB search results or Craigslist listing capture.
