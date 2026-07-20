@@ -29,11 +29,19 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+`npm run dev` uses webpack (not Turbopack) so a stray parent `package-lock.json`
+(e.g. in your home directory) cannot break Tailwind CSS resolution.
+
+Load the Chrome/Edge extension from the `extension/` folder (unpacked) for eBay
+comps and Facebook Marketplace listing capture. Direct **Send to Goblin** works
+against a Goblin tab on `localhost` / `127.0.0.1`.
+
 ## Scripts
 
 ```bash
-npm run dev      # Start dev server
+npm run dev      # Start dev server (webpack)
 npm run build    # Production build
 npm run start    # Start production server
 npm run lint     # ESLint
+npm run test     # Vitest
 ```
