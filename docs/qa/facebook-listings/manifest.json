@@ -1,0 +1,98 @@
+[
+  {
+    "id": "3039750046185684",
+    "file": "01-sleeper-truck-ideal.html",
+    "category": "Vehicles",
+    "expected": { "title": "2018 Freightliner Cascadia Sleeper", "price": 42500, "description": "Clean sleeper truck, well maintained." },
+    "notes": "Ideal DOM — all marketplace testids present",
+    "fragility": "none"
+  },
+  {
+    "id": "1181360107153349",
+    "file": "02-finca-h1-only.html",
+    "category": "Real estate",
+    "expected": { "title": "Finca with mountain view", "price": 150000, "description": "" },
+    "notes": "Missing testids; title via h1, price via rawText regex",
+    "fragility": "data-testid missing"
+  },
+  {
+    "id": "1278061654412635",
+    "file": "03-formal-shoes-full.html",
+    "category": "Clothing",
+    "expected": { "title": "Formal shoes", "price": 25, "description": "Formal shoes used only once. Size UK12." },
+    "notes": "Public API example listing structure",
+    "fragility": "none"
+  },
+  {
+    "id": "1656586118821988",
+    "file": "04-eur-price.html",
+    "category": "Electronics",
+    "expected": { "title": "Sony WH-1000XM5", "price": 249, "description": "Lightly used headphones." },
+    "notes": "EUR price in testid — USD regex may fail",
+    "fragility": "currency"
+  },
+  {
+    "id": "1547618196594748",
+    "file": "05-mini-cooper-vehicle.html",
+    "category": "Vehicles",
+    "expected": { "title": "2010 MINI Cooper", "price": 6500, "description": "Automatic, petrol, 192000 km." },
+    "notes": "Vehicle listing with long raw page text",
+    "fragility": "description class"
+  },
+  {
+    "id": "2000000000000001",
+    "file": "06-free-couch.html",
+    "category": "Furniture",
+    "expected": { "title": "Free sectional couch", "price": 0, "description": "Must pick up today." },
+    "notes": "Free listing — price may be FREE not numeric",
+    "fragility": "free-price"
+  },
+  {
+    "id": "2000000000000002",
+    "file": "07-no-image.html",
+    "category": "Electronics",
+    "expected": { "title": "Canon EOS Rebel T7", "price": 350, "description": "Includes kit lens." },
+    "notes": "No listing image in DOM",
+    "fragility": "image selectors"
+  },
+  {
+    "id": "2000000000000003",
+    "file": "08-wrong-span-price.html",
+    "category": "Tools",
+    "expected": { "title": "Milwaukee M18 Drill", "price": 89, "description": "Brushless, one battery." },
+    "notes": "Generic span[dir=auto] appears before real price",
+    "fragility": "span[dir=auto] too generic"
+  },
+  {
+    "id": "2000000000000004",
+    "file": "09-fallback-shell.html",
+    "category": "Other",
+    "expected": { "title": "Vintage brass lamp", "price": 40, "description": "" },
+    "notes": "SPA shell only — expects selectorFallback + text parse",
+    "fragility": "fallback"
+  },
+  {
+    "id": "2000000000000005",
+    "file": "10-high-price-watch.html",
+    "category": "Collectibles",
+    "expected": { "title": "Rolex Submariner", "price": 9500, "description": "Box and papers." },
+    "notes": "High-value item with comma-formatted price",
+    "fragility": "none"
+  },
+  {
+    "id": "2000000000000006",
+    "file": "11-multi-image-gallery.html",
+    "category": "Furniture",
+    "expected": { "title": "Mid-century dining set", "price": 450, "description": "Table and four chairs." },
+    "notes": "Multiple fbcdn images — captures first only",
+    "fragility": "first-image-only"
+  },
+  {
+    "id": "2000000000000007",
+    "file": "12-stale-testid.html",
+    "category": "Electronics",
+    "expected": { "title": "iPad Air 5", "price": 399, "description": "64GB WiFi model." },
+    "notes": "Renamed testids (simulates FB A/B DOM change)",
+    "fragility": "stale testid"
+  }
+]
