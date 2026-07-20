@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Marketplace Goblin Comp Capture",
+  "version": "0.4.0",
+  "description": "Capture eBay comps and Facebook Marketplace listings for Marketplace Goblin.",
+  "permissions": ["activeTab", "scripting", "clipboardWrite", "tabs"],
+  "host_permissions": [
+    "https://www.ebay.com/*",
+    "https://ebay.com/*",
+    "https://www.facebook.com/*",
+    "https://m.facebook.com/*",
+    "https://facebook.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Marketplace Goblin — Capture eBay comps"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

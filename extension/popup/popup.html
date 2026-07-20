@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketplace Goblin</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>Marketplace Goblin</h1>
+      <p class="subtitle">Marketplace capture v0.4</p>
+    </header>
+
+    <p id="page-status" class="status">Checking page…</p>
+
+    <p id="scroll-hint" class="hint hidden">
+      Scroll the eBay page to load more results, then capture again. Marketplace
+      Goblin dedupes when you import multiple batches.
+    </p>
+
+    <button id="capture-btn" type="button" class="btn btn-primary" disabled>
+      Capture visible eBay comps
+    </button>
+
+    <div id="stats-panel" class="stats hidden" aria-live="polite">
+      <div class="stat">
+        <span class="stat-value" id="stat-captured">0</span>
+        <span class="stat-label">Captured this run</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-valid">0</span>
+        <span class="stat-label">Valid comps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-duplicates">0</span>
+        <span class="stat-label">Likely duplicates</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-skipped">0</span>
+        <span class="stat-label">Skipped rows</span>
+      </div>
+    </div>
+
+    <p id="capture-meta" class="meta hidden"></p>
+
+    <section id="preview" class="preview hidden" aria-live="polite">
+      <h2>Preview</h2>
+      <ul id="preview-list" class="preview-list"></ul>
+    </section>
+
+    <div id="export-actions" class="export-actions hidden">
+      <button id="send-btn" type="button" class="btn btn-primary" disabled>
+        Send to Goblin
+      </button>
+      <button id="copy-btn" type="button" class="btn btn-secondary" disabled>
+        Copy JSON to clipboard
+      </button>
+    </div>
+
+    <p id="toast" class="toast hidden" role="status"></p>
+
+    <footer class="footer">
+      eBay comps → Listen for extension import. Facebook listings → Listen for
+      extension listing import. Clipboard JSON still works as a fallback.
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

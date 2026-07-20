@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0",
+  "source": "extension",
+  "platform": "eBay",
+  "searchQuery": "Milwaukee M18 Fuel",
+  "capturedAt": "2026-06-08T20:00:00.000Z",
+  "pageUrl": "https://www.ebay.com/sch/i.html?_nkw=Milwaukee+M18+Fuel&LH_Sold=1&LH_Complete=1",
+  "comps": [
+    {
+      "title": "Milwaukee M18 Fuel Hammer Drill",
+      "price": 89.99,
+      "platform": "eBay",
+      "listingType": "sold",
+      "url": "https://www.ebay.com/itm/123456789",
+      "imageUrl": "https://i.ebayimg.com/images/g/example.jpg",
+      "capturedAt": "2026-06-08T20:00:00.000Z",
+      "rawText": "Milwaukee M18 Fuel Hammer Drill $89.99 Sold",
+      "confidence": {
+        "title": "high",
+        "price": "high",
+        "listingType": "high",
+        "platform": "high",
+        "condition": "low"
+      }
+    },
+    {
+      "title": "Milwaukee M18 Impact Driver Bare Tool",
+      "price": 54.5,
+      "platform": "eBay",
+      "listingType": "sold",
+      "url": "https://www.ebay.com/itm/987654321",
+      "capturedAt": "2026-06-08T20:00:00.000Z",
+      "rawText": "Milwaukee M18 Impact Driver Bare Tool $54.50 Sold",
+      "confidence": {
+        "title": "high",
+        "price": "high",
+        "listingType": "high",
+        "platform": "high"
+      }
+    }
+  ]
+}
