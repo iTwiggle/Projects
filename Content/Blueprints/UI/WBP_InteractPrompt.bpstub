@@ -1,0 +1,25 @@
+AssetName: WBP_InteractPrompt
+AssetType: WidgetBlueprint
+Status: Step2_PromptVisibilityBehaviorDefined
+WidgetTree:
+  - Root: CanvasPanel
+  - Child: Border (optional styling)
+  - Child: TextBlock (Name: TXT_Prompt)
+Defaults:
+  - InitialVisibility: Collapsed
+  - DefaultPromptText: "Interact"
+Variables:
+  - PromptText: Text
+Functions:
+  - Name: SetPromptText
+    Inputs:
+      - InText: Text
+    Flow:
+      - PromptText = InText
+      - TXT_Prompt.SetText(PromptText)
+  - Name: SetPromptVisible
+    Inputs:
+      - bVisible: Boolean
+    Flow:
+      - If bVisible: SetVisibility(Visible)
+      - Else: SetVisibility(Collapsed)

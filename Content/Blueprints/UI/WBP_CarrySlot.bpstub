@@ -1,0 +1,23 @@
+AssetName: WBP_CarrySlot
+AssetType: WidgetBlueprint
+Status: Step3_CarryNameDisplayDefined
+WidgetTree:
+  - Root: CanvasPanel
+  - Child: Border (optional styling)
+  - Child: TextBlock (Name: TXT_CarryItemName)
+Defaults:
+  - InitialText: "Empty"
+Variables:
+  - CarriedItemName: Text
+Functions:
+  - Name: SetCarryItemName
+    Inputs:
+      - InItemName: Text
+    Flow:
+      - CarriedItemName = InItemName
+      - TXT_CarryItemName.SetText(CarriedItemName)
+  - Name: SetCarryEmpty
+    Inputs: []
+    Flow:
+      - CarriedItemName = "Empty"
+      - TXT_CarryItemName.SetText(CarriedItemName)

@@ -1,0 +1,31 @@
+AssetName: BP_LootChest
+AssetType: BlueprintClass_Actor
+Status: Step3_ChestInteractGrantDefined
+Implements:
+  - BPI_Interactable
+Variables:
+  - bHasGivenItem: Boolean (default: false)
+  - ChestItemData: ST_ItemData
+Defaults:
+  - ChestItemData.ItemID: itm_chest_relic
+  - ChestItemData.DisplayName: Ancient Relic
+  - ChestItemData.Rarity: Common
+InterfaceFunctions:
+  - Name: GetInteractPrompt
+    Return:
+      - PromptText: "Open Chest"
+  - Name: Interact
+    Inputs:
+      - InteractingActor: Actor
+    Flow:
+      - If bHasGivenItem is true:
+        - Do nothing
+      - Else:
+        - GetComponentByClass on InteractingActor (BP_InteractionComponent)
+        - If component found:
+          - bGranted = BP_InteractionComponent.TrySetCarriedItem(ChestItemData)
+          - If bGranted is true:
+            - bHasGivenItem = true
+Notes:
+  - No pickup drops are spawned in Step 3.
+  - No random loot table is used in Step 3.

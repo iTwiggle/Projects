@@ -1,0 +1,17 @@
+AssetName: BPI_Interactable
+AssetType: BlueprintInterface
+Status: Step2_InterfaceSignaturesDefined
+Functions:
+  - Name: GetInteractPrompt
+    Inputs: []
+    Outputs:
+      - PromptText: Text
+    Notes:
+      - Returns the prompt text displayed in WBP_InteractPrompt.
+  - Name: Interact
+    Inputs:
+      - InteractingActor: Actor
+    Outputs: []
+    Notes:
+      - Called by BP_InteractionComponent when interact input is pressed.
+      - No loot/extraction/inventory behavior is defined at interface level.
